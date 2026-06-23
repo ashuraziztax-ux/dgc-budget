@@ -186,7 +186,7 @@
   </div></div>
 
   <div class="holdwrap">
-    <div class="holdhead">📥 Holding bay — things with no date yet. Drag a card up onto a week when you know when it's paid (or drag one down here to un-schedule it). Parked cards don't count toward the balance.</div>
+    <div class="holdhead">📥 Holding bay — things with no date yet. Add one below: <b>leave the date blank to park it here, or set a date to drop it straight on the timeline.</b> Drag cards up onto a week, or down here to un-schedule. Parked cards don't count toward the balance.</div>
     <div class="quickadd">
       <input id="qaName" class="qn" placeholder="Name (e.g. JCB hire)">
       <input id="qaAmt" class="qa" type="number" placeholder="£ amount">
@@ -194,6 +194,9 @@
         <button type="button" id="qaOut" class="qtbtn out active" onclick="setQAType('out')">− Outgoing</button>
         <button type="button" id="qaIn" class="qtbtn in" onclick="setQAType('in')">+ Ingoing</button>
       </div>
+      <input id="qaDate" class="qa" type="date" title="Due date — leave blank to park it in the holding bay">
+      <input id="qaInv" class="qa" placeholder="Invoice no.">
+      <input id="qaNote" class="qn" placeholder="Notes (optional)">
       <button class="go" onclick="quickAdd()">Go →</button>
     </div>
     <div class="holdbay" id="holding" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropHold(event)"></div>
@@ -244,7 +247,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v6";
+const APP_VERSION="v7";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -413,8 +416,15 @@ function quickAdd(){
   const nEl=document.getElementById("qaName"), aEl=document.getElementById("qaAmt");
   const name=nEl.value.trim(), amt=+aEl.value||0, type=qaType;
   if(!name){ nEl.focus(); return; }
-  S[type].push({n:name,a:amt,d:""});
-  nEl.value=""; aEl.value=""; nEl.focus(); render();
+  const d=document.getElementById("qaDate").value;
+  const inv=document.getElementById("qaInv").value.trim();
+  const note=document.getElementById("qaNote").value.trim();
+  const item={n:name,a:amt,d:d||""};        // no date → parks in holding bay
+  if(inv) item.inv=inv;
+  if(note) item.note=note;
+  S[type].push(item);
+  nEl.value=""; aEl.value=""; document.getElementById("qaDate").value=""; document.getElementById("qaInv").value=""; document.getElementById("qaNote").value="";
+  nEl.focus(); render();
 }
 function toggleDetail(){
   const d=document.getElementById("detail"), b=document.getElementById("detailBtn");
