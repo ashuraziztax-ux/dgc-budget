@@ -202,10 +202,13 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v4";
+const APP_VERSION="v5";
 let remoteVersion=null, updateShown=false;
-function metaUrl(){ return DB+"/meta/version.json"+(idToken?("?auth="+idToken):""); }
-function checkVersion(v){ if(v && v!==APP_VERSION && !updateShown){ updateShown=true; remoteVersion=v; showUpdateBar(); } }
+function checkForUpdate(){
+  fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
+    if(v){ v=v.trim(); if(v && v!==APP_VERSION && !updateShown){ updateShown=true; remoteVersion=v; showUpdateBar(); } }
+  }).catch(()=>{});
+}
 function showUpdateBar(){ if(document.getElementById("updbar"))return; const b=document.createElement("div"); b.id="updbar"; b.className="updbar"; b.innerHTML='🔄 A new version of the budget is ready. <button id="updbtn">Update now</button>'; document.body.appendChild(b); document.getElementById("updbtn").onclick=applyUpdate; }
 async function applyUpdate(){ await flushNow(); location.replace(location.pathname+"?v="+encodeURIComponent((remoteVersion||"")+"-"+new Date().getTime())); }
 async function flushNow(){ clearTimeout(putTimer); if(cloudReady){ await ensureToken(); try{ await fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); lastCloudJson=JSON.stringify(S);}catch(e){} } }
@@ -233,18 +236,12 @@ async function cloudInit(){
     } else {
       cloudReady=true; pushCloud();
     }
-    // app-version: seed if empty, else flag if a newer build is live
-    try{ const mv=await (await fetch(metaUrl(),{cache:"no-store"})).json();
-      if(mv===null){ fetch(metaUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(APP_VERSION)}); remoteVersion=APP_VERSION; }
-      else { remoteVersion=mv; checkVersion(mv); }
-    }catch(e){}
     setCloudStatus("live");
     setInterval(pollCloud,4000);
   }catch(e){ cloudReady=false; setCloudStatus("offline"); }
 }
 async function pollCloud(){
   await ensureToken();
-  fetch(metaUrl(),{cache:"no-store"}).then(r=>r.json()).then(v=>checkVersion(v)).catch(()=>{});
   if(dragging) return;
   const ae=document.activeElement; if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
   fetch(dbUrl(),{cache:"no-store"}).then(r=>r.json()).then(data=>{
@@ -450,6 +447,7 @@ function tryAutoLogin(){
 document.addEventListener("dragend",()=>{ dragging=false; });
 window.addEventListener("beforeunload",()=>{ if(cloudReady){ try{ fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); }catch(e){} } });
 load(); render(); snapLabel(); tryAutoLogin();
+checkForUpdate(); setInterval(checkForUpdate,30000);
 </script>
 </body>
 </html>
