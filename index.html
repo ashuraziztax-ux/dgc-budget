@@ -135,6 +135,10 @@
   .paidbig{background:rgba(63,185,80,.2);color:var(--in)}
   .delbig{background:rgba(248,81,73,.15);color:var(--out)}
   .donebig{background:var(--accent);color:#0b0f14}
+  .edrep{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;color:var(--text);cursor:pointer}
+  .edrep input{width:auto;accent-color:var(--accent);transform:scale(1.2)}
+  .qarep{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer;white-space:nowrap}
+  .qarep input{width:auto;accent-color:var(--accent)}
   .hint{font-size:11px;color:var(--dim);margin-top:4px}
 </style>
 </head>
@@ -157,6 +161,7 @@
       <label>Date</label><input id="ed_date" type="date">
       <label>Invoice no. <span class="hintlbl">(search this in Outlook)</span></label><input id="ed_inv" placeholder="e.g. INV-2231">
       <label>Comment <span class="hintlbl">(shows when you hover the card)</span></label><textarea id="ed_note" rows="3" placeholder="leave a note…"></textarea>
+      <label class="edrep"><input type="checkbox" id="ed_repeat"> 🔁 Repeat monthly <span class="hintlbl">(same bill every month)</span></label>
       <div class="modalactions">
         <button class="paidbig" id="ed_paidbtn" onclick="edPaidToggle()">✓ Mark paid</button>
         <button class="delbig" onclick="edDelete()">Delete</button>
@@ -197,6 +202,7 @@
       <input id="qaDate" class="qa" type="date" title="Due date — leave blank to park it in the holding bay">
       <input id="qaInv" class="qa" placeholder="Invoice no.">
       <input id="qaNote" class="qn" placeholder="Notes (optional)">
+      <label class="qarep"><input type="checkbox" id="qaRepeat"> 🔁 Monthly</label>
       <button class="go" onclick="quickAdd()">Go →</button>
     </div>
     <div class="holdbay" id="holding" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropHold(event)"></div>
@@ -247,7 +253,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v7";
+const APP_VERSION="v8";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -332,10 +338,26 @@ function iso(d){ return d.toISOString().slice(0,10); }
 function buildWeeks(){ const weeks=[]; let t=START.getTime(); while(t<=END.getTime()){ weeks.push({start:new Date(t), in:[], out:[]}); t+=WK; } return weeks; }
 function wkIndex(ds,n){ const i=Math.floor((new Date(ds).getTime()-START.getTime())/WK); return Math.max(0,Math.min(n-1,i)); }
 
+function monthlyDates(startISO){
+  const sd=new Date(startISO); if(isNaN(sd.getTime())) return [];
+  const y=sd.getFullYear(), day=sd.getDate(); let m=sd.getMonth(); const res=[];
+  let t=new Date(y,m,day);
+  while(t.getTime()<=END.getTime()){ if(t.getTime()>=START.getTime()-WK) res.push(iso(t)); m++; t=new Date(y,m,day); }
+  return res;
+}
 function allEvents(){
   const ev=[];
-  S.out.forEach((x,i)=>{ if(x.paid) return; ev.push({n:x.n,a:-Math.abs(+x.a||0),d:x.d,t:"out",idx:i,inv:x.inv,note:x.note}); });
-  S.in.forEach((x,i)=>{ if(x.paid) return; ev.push({n:x.n,a:Math.abs(+x.a||0),d:x.d,t:"in",idx:i,inv:x.inv,note:x.note}); });
+  function pushItem(x,i,type){
+    if(x.paid) return;
+    const amt=(type==="out"?-1:1)*Math.abs(+x.a||0);
+    if(x.repeat==="monthly" && x.d){
+      monthlyDates(x.d).forEach(dd=>ev.push({n:x.n,a:amt,d:dd,t:type,idx:i,inv:x.inv,note:x.note,rep:true}));
+    } else {
+      ev.push({n:x.n,a:amt,d:x.d,t:type,idx:i,inv:x.inv,note:x.note});
+    }
+  }
+  S.out.forEach((x,i)=>pushItem(x,i,"out"));
+  S.in.forEach((x,i)=>pushItem(x,i,"in"));
   const pay=+S.payroll||0; let pd=new Date(S.payday).getTime();
   while(pd<=END.getTime()){ if(pd>=START.getTime()-WK) ev.push({n:"Payroll",a:-pay,d:iso(new Date(pd)),t:"out",gen:true}); pd+=2*WK; }
   return ev;
@@ -387,12 +409,13 @@ function render(){
 
 function chip(e){
   const cls=e.t==='in'?'cin':'cout';
-  const drag=e.gen? '' : `draggable="true" ondragstart="dragStart(event,'${e.t}',${e.idx})"`;
+  const noDrag=e.gen||e.rep;
+  const drag=noDrag? '' : `draggable="true" ondragstart="dragStart(event,'${e.t}',${e.idx})"`;
   const click=e.gen? '' : `onclick="openEditor('${e.t}',${e.idx})"`;
-  let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note);
+  let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note); if(e.rep) tp.push("repeats monthly");
   const tip=e.gen? 'auto — change at the top' : (tp.length?tp.join("  ·  "):"click to edit · drag to move");
-  const marks=(e.inv?' 📄':'')+(e.note?' 💬':'');
-  return `<span class="chip ${cls}${e.gen?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}${marks}</span></span>`;
+  const marks=(e.rep?' 🔁':'')+(e.inv?' 📄':'')+(e.note?' 💬':'');
+  return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}${marks}</span></span>`;
 }
 
 // drag & drop
@@ -422,8 +445,9 @@ function quickAdd(){
   const item={n:name,a:amt,d:d||""};        // no date → parks in holding bay
   if(inv) item.inv=inv;
   if(note) item.note=note;
+  if(document.getElementById("qaRepeat").checked) item.repeat="monthly";
   S[type].push(item);
-  nEl.value=""; aEl.value=""; document.getElementById("qaDate").value=""; document.getElementById("qaInv").value=""; document.getElementById("qaNote").value="";
+  nEl.value=""; aEl.value=""; document.getElementById("qaDate").value=""; document.getElementById("qaInv").value=""; document.getElementById("qaNote").value=""; document.getElementById("qaRepeat").checked=false;
   nEl.focus(); render();
 }
 function toggleDetail(){
@@ -494,6 +518,7 @@ function openEditor(type,idx){
   document.getElementById("ed_date").value=it.d||"";
   document.getElementById("ed_inv").value=it.inv||"";
   document.getElementById("ed_note").value=it.note||"";
+  document.getElementById("ed_repeat").checked = (it.repeat==="monthly");
   document.getElementById("ed_paidbtn").textContent = it.paid? "↩ Bring back" : "✓ Mark paid";
   document.getElementById("editor").style.display="flex";
 }
@@ -502,7 +527,8 @@ function edCommit(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.id
   it.a=+document.getElementById("ed_amt").value||0;
   it.d=document.getElementById("ed_date").value;
   it.inv=document.getElementById("ed_inv").value;
-  it.note=document.getElementById("ed_note").value; }
+  it.note=document.getElementById("ed_note").value;
+  if(document.getElementById("ed_repeat").checked) it.repeat="monthly"; else delete it.repeat; }
 function edClose(){ edCommit(); document.getElementById("editor").style.display="none"; edTarget=null; render(); }
 function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid) delete it.paid; else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
 function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
