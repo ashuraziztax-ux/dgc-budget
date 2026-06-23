@@ -98,6 +98,9 @@
   .actions .save{background:rgba(63,185,80,.18);color:var(--in);border-color:var(--in)}
   .actions .danger{color:var(--dim)}
   .savenote{font-size:12px;color:var(--dim);margin-top:8px}
+  .cloudbadge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:20px;margin:2px 0 14px;font-weight:600;border:1px solid var(--line);color:var(--dim)}
+  .cloudbadge.live{color:var(--in);border-color:var(--in);background:rgba(63,185,80,.12)}
+  .cloudbadge.off{color:var(--warn);border-color:var(--warn);background:rgba(210,153,34,.12)}
   .lockscreen{position:fixed;inset:0;background:#0e1116;z-index:9999;display:flex;align-items:center;justify-content:center}
   .lockbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:30px;width:300px;text-align:center}
   .lockbox .lt{font-size:20px;font-weight:700;margin-bottom:16px}
@@ -118,6 +121,7 @@
   </div>
 
   <h1>DGC — Cash Flow Timeline</h1>
+  <div class="cloudbadge" id="cloudStatus">☁︎ connecting…</div>
   <div class="sub">Weeks run Tuesday → Tuesday, numbered straight through (Week 1, 2, 3…) with the month on the band above. Green + in, red − out, on the week paid. <b>Drag any solid chip to another week</b> to reschedule it (dashed chips are auto — change those at the top). Scroll sideways →</div>
 
   <div class="topbar">
@@ -213,9 +217,48 @@ const DEFAULTS = {
 };
 
 let S;
+const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
+let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
+
 function load(){ try{S=JSON.parse(localStorage.getItem("dgc_cf_v2"));}catch(e){S=null;} if(!S) S=JSON.parse(JSON.stringify(DEFAULTS)); }
-function save(){ localStorage.setItem("dgc_cf_v2", JSON.stringify(S)); }
-function resetAll(){ if(confirm("Start over? This wipes ALL your changes and goes back to the original figures. (Use “Back to last save” instead if you just want to undo recent messing-about.)")){S=JSON.parse(JSON.stringify(DEFAULTS));save();render();} }
+function save(){
+  localStorage.setItem("dgc_cf_v2", JSON.stringify(S));
+  if(cloudReady){ clearTimeout(putTimer); putTimer=setTimeout(pushCloud,500); }
+}
+function pushCloud(){
+  const body=JSON.stringify(S); lastCloudJson=body;
+  fetch(DB+"/budget.json",{method:"PUT",headers:{"Content-Type":"application/json"},body:body})
+    .then(()=>setCloudStatus("live")).catch(()=>setCloudStatus("offline"));
+}
+async function cloudInit(){
+  try{
+    const data=await (await fetch(DB+"/budget.json",{cache:"no-store"})).json();
+    if(data && Array.isArray(data.out) && Array.isArray(data.in)){
+      S=data; lastCloudJson=JSON.stringify(data); localStorage.setItem("dgc_cf_v2",lastCloudJson);
+      cloudReady=true; render(); snapLabel();
+    } else {
+      cloudReady=true; pushCloud();
+    }
+    setCloudStatus("live");
+    setInterval(pollCloud,7000);
+  }catch(e){ cloudReady=false; setCloudStatus("offline"); }
+}
+function pollCloud(){
+  if(dragging) return;
+  const ae=document.activeElement; if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
+  fetch(DB+"/budget.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{
+    if(!data || !Array.isArray(data.out)) return;
+    const remote=JSON.stringify(data);
+    if(remote!==lastCloudJson){ S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); }
+  }).catch(()=>setCloudStatus("offline"));
+}
+function setCloudStatus(s){
+  const el=document.getElementById("cloudStatus"); if(!el) return;
+  if(s==="live"){ el.className="cloudbadge live"; el.textContent="☁︎ Live — shared with everyone"; }
+  else if(s==="offline"){ el.className="cloudbadge off"; el.textContent="⚠︎ Offline — saved on this device only"; }
+  else { el.className="cloudbadge"; el.textContent="☁︎ connecting…"; }
+}
+function resetAll(){ if(confirm("Start over? This wipes ALL changes back to the original figures — FOR EVERYONE on the shared copy, not just you. (Use “Back to last save” to undo your own recent messing-about instead.)")){S=JSON.parse(JSON.stringify(DEFAULTS));save();render();} }
 function fmtNow(){ const d=new Date(); return d.toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); }
 function snapLabel(){ const t=localStorage.getItem("dgc_cf_snap_t"); const el=document.getElementById("saveNote"); if(el) el.textContent = t ? ("✓ Last saved: "+t+"  —  “Back to last save” returns here.") : "No version saved yet. Arrange it how you want, then hit “Save this version” so you can always come back to it."; }
 function saveSnapshot(){ localStorage.setItem("dgc_cf_snap", JSON.stringify(S)); localStorage.setItem("dgc_cf_snap_t", fmtNow()); snapLabel(); }
@@ -307,7 +350,7 @@ function chip(e){
 }
 
 // drag & drop
-function dragStart(ev,type,idx){ ev.dataTransfer.setData("text/plain", type+":"+idx); ev.dataTransfer.effectAllowed="move"; }
+function dragStart(ev,type,idx){ dragging=true; ev.dataTransfer.setData("text/plain", type+":"+idx); ev.dataTransfer.effectAllowed="move"; }
 function dragOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add("dragover"); ev.dataTransfer.dropEffect="move"; }
 function dragLeave(ev){ ev.currentTarget.classList.remove("dragover"); }
 function dropChip(ev){ ev.preventDefault(); ev.currentTarget.classList.remove("dragover");
@@ -382,7 +425,8 @@ const PW="Millions!";
 function unlock(){ if(document.getElementById("pw").value===PW){ sessionStorage.setItem("dgc_cf_unlocked","yes"); document.getElementById("lock").style.display="none"; } else { document.getElementById("pwerr").textContent="Wrong password — try again."; document.getElementById("pw").select(); } }
 if(sessionStorage.getItem("dgc_cf_unlocked")==="yes"){ document.getElementById("lock").style.display="none"; }
 
-load(); render(); snapLabel();
+document.addEventListener("dragend",()=>{ dragging=false; });
+load(); render(); snapLabel(); cloudInit();
 </script>
 </body>
 </html>
