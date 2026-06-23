@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DGC Cash Flow — timeline</title>
+<style>
+  :root{
+    --bg:#0e1116; --card:#161b22; --card2:#1c232c; --line:#2a323d;
+    --text:#e6edf3; --dim:#8b97a6; --in:#3fb950; --out:#f85149;
+    --accent:#58a6ff; --warn:#d29922;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--text);padding:16px;max-width:1300px;margin:0 auto;-webkit-text-size-adjust:100%}
+  h1{font-size:21px;font-weight:700}
+  .sub{color:var(--dim);font-size:13px;margin:2px 0 16px}
+
+  .topbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;background:var(--card);
+    border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:14px}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+  .field input{background:var(--card2);border:1px solid var(--line);color:var(--text);
+    border-radius:8px;padding:8px 10px;font-size:15px;width:130px;font-weight:600}
+  .field input.sm{width:96px}
+  .field input:focus{outline:none;border-color:var(--accent)}
+
+  .verdict{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px;font-size:14px;line-height:1.5}
+  .verdict.bad{border-color:var(--out)} .verdict.bad b{color:var(--out)} .verdict b{color:var(--accent)}
+
+  /* timeline */
+  .scroller{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card);padding-bottom:4px}
+  .tlwrap{min-width:max-content}
+  .monthband{display:flex;border-bottom:1px solid var(--line)}
+  .mb{border-right:1px solid var(--line);padding:7px 10px;font-size:13px;font-weight:700;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.04em;position:sticky;left:0}
+  .mb:last-child{border-right:none}
+  .timeline{display:flex}
+  .wk{flex:0 0 132px;width:132px;border-right:1px solid var(--line)}
+  .wk:last-child{border-right:none}
+  .wk.dragover{background:rgba(88,166,255,.12);outline:2px dashed var(--accent);outline-offset:-2px}
+  .wkhead{padding:7px 9px;border-bottom:1px solid var(--line)}
+  .wkhead .d{font-size:13px;font-weight:700}
+  .wkhead .mo{font-size:10px;color:var(--dim)}
+  .lane{padding:7px 8px;min-height:50px;border-bottom:1px solid var(--line)}
+  .lane.inLane{background:rgba(63,185,80,.04)}
+  .lane.outLane{background:rgba(248,81,73,.04)}
+  .chip{display:block;font-size:11px;border-radius:6px;padding:4px 6px;margin-bottom:4px;line-height:1.25;font-variant-numeric:tabular-nums}
+  .chip.cin{background:rgba(63,185,80,.14);color:var(--in)}
+  .chip.cout{background:rgba(248,81,73,.14);color:var(--out)}
+  .chip:not(.gen){cursor:grab}
+  .chip:not(.gen):active{cursor:grabbing}
+  .chip.gen{opacity:.85;border:1px dashed rgba(139,151,166,.35)}
+  .chip .amt{font-weight:700;display:block}
+  .chip .nm{opacity:.85;font-size:10px}
+  .balcell{padding:8px 9px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
+  .balcell .lab{font-size:9px;color:var(--dim);text-transform:uppercase;display:block;text-align:left;font-weight:600}
+  .pos{color:var(--in)} .neg{color:var(--out)}
+
+  .holdwrap{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .holdhead{font-size:12px;color:var(--dim);margin-bottom:10px;line-height:1.4}
+  .holdbay{display:flex;flex-wrap:wrap;gap:8px;min-height:64px;border:1px dashed var(--line);border-radius:8px;padding:10px}
+  .holdbay.dragover{background:rgba(88,166,255,.12);border-color:var(--accent)}
+  .holdbay .chip{width:165px;margin-bottom:0;padding:8px 9px}
+  .holdempty{color:var(--dim);font-size:12px;align-self:center}
+  .quickadd{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+  .quickadd input,.quickadd select{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:14px}
+  .quickadd input:focus,.quickadd select:focus{outline:none;border-color:var(--accent)}
+  .quickadd .qn{flex:1;min-width:150px} .quickadd .qa{width:120px}
+  .quickadd .go{background:var(--accent);color:#0b0f14;border:none;font-weight:700;cursor:pointer;border-radius:8px;padding:10px 18px;font-size:14px}
+  .quickadd .go:hover{opacity:.9}
+  .qatoggle{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .qtbtn{background:var(--card2);color:var(--dim);border:none;padding:9px 14px;font-size:13px;cursor:pointer;font-weight:600}
+  .qtbtn.out.active{background:rgba(248,81,73,.2);color:var(--out)}
+  .qtbtn.in.active{background:rgba(63,185,80,.2);color:var(--in)}
+  .toggle{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:10px 14px;cursor:pointer;font-size:13px;margin:18px 0 0;font-weight:600}
+  .toggle:hover{border-color:var(--accent)}
+  .trendwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:14px 0}
+  .trendwrap h2{font-size:13px;color:var(--dim);text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+
+  h2.sec{font-size:15px;margin:20px 0 9px}
+  table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 10px;text-align:left;font-size:13px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:600;font-size:10px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  input.amt2{background:transparent;border:1px solid transparent;color:var(--text);font-size:14px;width:88px;text-align:right;font-variant-numeric:tabular-nums;border-radius:6px;padding:5px 6px;font-weight:600}
+  input.amt2:hover{border-color:var(--line)} input.amt2:focus{outline:none;border-color:var(--accent);background:var(--card2)}
+  input.nm2{background:transparent;border:1px solid transparent;color:var(--text);font-size:14px;font-weight:600;border-radius:6px;padding:5px 6px;width:100%}
+  input.nm2:hover{border-color:var(--line)} input.nm2:focus{outline:none;border-color:var(--accent);background:var(--card2)}
+  input[type=date]{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:4px 7px;font-size:12px}
+  .del{color:var(--dim);cursor:pointer;font-size:16px;border:none;background:none;padding:4px 8px}
+  .del:hover{color:var(--out)}
+  .addbtn{background:var(--card2);border:1px dashed var(--line);color:var(--dim);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px;margin-top:9px}
+  .addbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .actions{display:flex;gap:10px;margin:18px 0;flex-wrap:wrap}
+  .actions button{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer;font-size:13px}
+  .actions button:hover{border-color:var(--accent)}
+  .actions .save{background:rgba(63,185,80,.18);color:var(--in);border-color:var(--in)}
+  .actions .danger{color:var(--dim)}
+  .savenote{font-size:12px;color:var(--dim);margin-top:8px}
+  .lockscreen{position:fixed;inset:0;background:#0e1116;z-index:9999;display:flex;align-items:center;justify-content:center}
+  .lockbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:30px;width:300px;text-align:center}
+  .lockbox .lt{font-size:20px;font-weight:700;margin-bottom:16px}
+  .lockbox input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font-size:16px;margin-bottom:10px}
+  .lockbox button{width:100%;background:var(--accent);color:#0b0f14;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:15px;cursor:pointer}
+  .pwerr{color:var(--out);font-size:12px;margin-top:8px;min-height:14px}
+  .hint{font-size:11px;color:var(--dim);margin-top:4px}
+</style>
+</head>
+<body>
+  <div id="lock" class="lockscreen">
+    <div class="lockbox">
+      <div class="lt">🔒 DGC Budget</div>
+      <input id="pw" type="password" placeholder="Password" autofocus onkeydown="if(event.key==='Enter')unlock()">
+      <button onclick="unlock()">Open</button>
+      <div class="pwerr" id="pwerr"></div>
+    </div>
+  </div>
+
+  <h1>DGC — Cash Flow Timeline</h1>
+  <div class="sub">Weeks run Tuesday → Tuesday, numbered straight through (Week 1, 2, 3…) with the month on the band above. Green + in, red − out, on the week paid. <b>Drag any solid chip to another week</b> to reschedule it (dashed chips are auto — change those at the top). Scroll sideways →</div>
+
+  <div class="topbar">
+    <div class="field"><label>Bank balance today (£)</label><input id="opening" type="number" placeholder="enter balance"></div>
+    <div class="field"><label>Overdraft (£)</label><input id="facility" type="number" class="sm" placeholder="0"></div>
+    <div class="field"><label>Payroll £/fortnight</label><input id="payroll" type="number" class="sm" value="16000"></div>
+    <div class="field"><label>Next payday</label><input id="payday" type="date" value="2026-07-03"></div>
+    <div class="field"><label>Baker £/payment (in)</label><input id="bakerAmt" type="number" class="sm" value="22595.34"></div>
+    <div class="field"><label>Baker total left</label><input id="bakerCap" type="number" class="sm" value="67786.02"></div>
+    <div class="field"><label>Baker next pay</label><input id="bakerStart" type="date" value="2026-06-26"></div>
+  </div>
+
+  <div id="verdict" class="verdict"></div>
+
+  <div class="trendwrap"><h2>Balance through time</h2><div id="trend"></div></div>
+
+  <div class="scroller"><div class="tlwrap">
+    <div class="monthband" id="monthband"></div>
+    <div class="timeline" id="timeline"></div>
+  </div></div>
+
+  <div class="holdwrap">
+    <div class="holdhead">📥 Holding bay — things with no date yet. Drag a card up onto a week when you know when it's paid (or drag one down here to un-schedule it). Parked cards don't count toward the balance.</div>
+    <div class="quickadd">
+      <input id="qaName" class="qn" placeholder="Name (e.g. JCB hire)">
+      <input id="qaAmt" class="qa" type="number" placeholder="£ amount">
+      <div class="qatoggle">
+        <button type="button" id="qaOut" class="qtbtn out active" onclick="setQAType('out')">− Outgoing</button>
+        <button type="button" id="qaIn" class="qtbtn in" onclick="setQAType('in')">+ Ingoing</button>
+      </div>
+      <button class="go" onclick="quickAdd()">Go →</button>
+    </div>
+    <div class="holdbay" id="holding" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropHold(event)"></div>
+  </div>
+
+  <button class="toggle" id="detailBtn" onclick="toggleDetail()">▸ Detailed view (all bills &amp; receipts)</button>
+  <div id="detail" style="display:none">
+
+  <h2 class="sec">Money OUT — bills we owe</h2>
+  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Due date</th><th></th></tr></thead><tbody id="outBody"></tbody></table>
+  <button class="addbtn" onclick="addItem('out')">+ add a bill</button>
+  <div class="hint">Payroll and Baker are generated automatically along the line — set them at the top, not by dragging.</div>
+
+  <h2 class="sec">Money IN — coming to us</h2>
+  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Date in</th><th></th></tr></thead><tbody id="inBody"></tbody></table>
+  <button class="addbtn" onclick="addItem('in')">+ add a receipt</button>
+  </div>
+
+  <div class="actions">
+    <button class="save" onclick="saveSnapshot()">💾 Save this version</button>
+    <button onclick="revertSnapshot()">↩ Back to last save</button>
+    <button onclick="window.print()">🖨 Print / PDF</button>
+    <button class="danger" onclick="resetAll()">↺ Start over (original figures)</button>
+  </div>
+  <div class="savenote" id="saveNote"></div>
+
+<script>
+const START = new Date("2026-06-23");   // Tuesday
+const END   = new Date("2026-09-29");
+const DAY = 86400000, WK = 7*DAY;
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const FULLMON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const DEFAULTS = {
+  opening:"", facility:"", payroll:16000, payday:"2026-07-03",
+  bakerAmt:22595.34, bakerCap:67786.02, bakerStart:"2026-06-26",
+  out:[
+    {n:"Fairgreens", a:20000, d:"2026-06-30"},
+    {n:"AV Craine", a:15000, d:"2026-06-30"},
+    {n:"Haldane Fisher", a:5000, d:"2026-06-30"},
+    {n:"Cuplas", a:10000, d:"2026-06-30"},
+    {n:"JP Corry", a:5000, d:"2026-06-30"},
+    {n:"Macblair", a:17000, d:"2026-07-15"},
+    {n:"Qualts", a:5000, d:"2026-06-30"},
+    {n:"Wapro", a:13000, d:"2026-07-15"},
+    {n:"Wapro Pro", a:15000, d:""},
+    {n:"Easy Mix (concrete)", a:12000, d:"2026-06-30"},
+    {n:"Finch Road concrete", a:15000, d:"2026-07-15"},
+    {n:"ASF (QS)", a:13000, d:"2026-07-31"},
+    {n:"Simon (QS)", a:5000, d:"2026-07-31"},
+    {n:"Trench boxes (1 of 2)", a:18500, d:""},
+    {n:"Trench boxes (2 of 2)", a:18500, d:""},
+    {n:"Hermeq", a:10000, d:""}
+  ],
+  in:[
+    {n:"BA4 AFP4 (Dandara)", a:110000, d:"2026-06-30"},
+    {n:"BA4 Final Account", a:41000, d:"2026-07-07"},
+    {n:"Manx Utilities", a:30000, d:"2026-07-21"},
+    {n:"VAT refund", a:27000, d:"2026-07-15"}
+  ]
+};
+
+let S;
+function load(){ try{S=JSON.parse(localStorage.getItem("dgc_cf_v2"));}catch(e){S=null;} if(!S) S=JSON.parse(JSON.stringify(DEFAULTS)); }
+function save(){ localStorage.setItem("dgc_cf_v2", JSON.stringify(S)); }
+function resetAll(){ if(confirm("Start over? This wipes ALL your changes and goes back to the original figures. (Use “Back to last save” instead if you just want to undo recent messing-about.)")){S=JSON.parse(JSON.stringify(DEFAULTS));save();render();} }
+function fmtNow(){ const d=new Date(); return d.toLocaleString("en-GB",{weekday:"short",day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); }
+function snapLabel(){ const t=localStorage.getItem("dgc_cf_snap_t"); const el=document.getElementById("saveNote"); if(el) el.textContent = t ? ("✓ Last saved: "+t+"  —  “Back to last save” returns here.") : "No version saved yet. Arrange it how you want, then hit “Save this version” so you can always come back to it."; }
+function saveSnapshot(){ localStorage.setItem("dgc_cf_snap", JSON.stringify(S)); localStorage.setItem("dgc_cf_snap_t", fmtNow()); snapLabel(); }
+function revertSnapshot(){ const s=localStorage.getItem("dgc_cf_snap"); if(!s){ alert("Nothing saved yet — hit “Save this version” first, then you can come back to it."); return; } if(confirm("Go back to your last saved version? Anything changed since the save will be lost.")){ S=JSON.parse(s); save(); render(); } }
+function gbp(n){ return (n<0?"-£":"£")+Math.abs(Math.round(n)).toLocaleString("en-GB"); }
+function fmtD(ds){ const d=new Date(ds); return d.getDate()+" "+MON[d.getMonth()]; }
+function iso(d){ return d.toISOString().slice(0,10); }
+
+function buildWeeks(){ const weeks=[]; let t=START.getTime(); while(t<=END.getTime()){ weeks.push({start:new Date(t), in:[], out:[]}); t+=WK; } return weeks; }
+function wkIndex(ds,n){ const i=Math.floor((new Date(ds).getTime()-START.getTime())/WK); return Math.max(0,Math.min(n-1,i)); }
+
+function allEvents(){
+  const ev=[];
+  S.out.forEach((x,i)=>ev.push({n:x.n,a:-Math.abs(+x.a||0),d:x.d,t:"out",idx:i}));
+  S.in.forEach((x,i)=>ev.push({n:x.n,a:Math.abs(+x.a||0),d:x.d,t:"in",idx:i}));
+  const pay=+S.payroll||0; let pd=new Date(S.payday).getTime();
+  while(pd<=END.getTime()){ if(pd>=START.getTime()-WK) ev.push({n:"Payroll",a:-pay,d:iso(new Date(pd)),t:"out",gen:true}); pd+=2*WK; }
+  const bAmt=+S.bakerAmt||0; let cap=+S.bakerCap||0; let bd=new Date(S.bakerStart).getTime(); const bk=[];
+  while(bd<=END.getTime() && cap>0.5 && bAmt>0){ const amt=Math.min(bAmt,cap); bk.push({amt:amt,d:iso(new Date(bd))}); cap-=amt; bd+=2*WK; }
+  bk.forEach((b,k)=>ev.push({n:"Baker "+(k+1)+"/"+bk.length,a:b.amt,d:b.d,t:"in",gen:true}));
+  return ev;
+}
+
+function render(){
+  ["opening","facility","payroll","payday","bakerAmt","bakerCap","bakerStart"].forEach(k=>{document.getElementById(k).value=S[k];});
+
+  const weeks=buildWeeks(); const n=weeks.length; const unscheduled=[];
+  allEvents().forEach(e=>{ if(!e.d){ unscheduled.push(e); return; } const i=wkIndex(e.d,n); weeks[i][e.a<0?"out":"in"].push(e); });
+
+  let bal=+S.opening||0; const fac=+S.facility||0;
+  let firstBreach=null, low={b:Infinity,d:null};
+  weeks.forEach(w=>{ const din=w.in.reduce((s,e)=>s+e.a,0); const dout=w.out.reduce((s,e)=>s+e.a,0);
+    bal+=din+dout; w.bal=bal; if(bal<low.b){low={b:bal,d:w.start};} if(bal< -fac && !firstBreach) firstBreach=w.start; });
+
+  // continuous week numbers, month band groups by month-of-start
+  let curMonth=null; const monthGroups=[];
+  weeks.forEach((w,i)=>{ const m=w.start.getMonth(), y=w.start.getFullYear(), key=y+"-"+m;
+    if(key!==curMonth){ curMonth=key; monthGroups.push({label:FULLMON[m], count:1}); }
+    else { monthGroups[monthGroups.length-1].count++; }
+    w.wkNum=i+1; w.wed=new Date(w.start.getTime()+DAY); });
+
+  // month band
+  document.getElementById("monthband").innerHTML = monthGroups.map(g=>`<div class="mb" style="width:${g.count*132}px">${g.label}</div>`).join("");
+
+  // timeline
+  document.getElementById("timeline").innerHTML = weeks.map(w=>`
+    <div class="wk" data-ws="${iso(w.start)}" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropChip(event)">
+      <div class="wkhead"><div class="d">${w.wed.getDate()} ${MON[w.wed.getMonth()]}</div><div class="mo">Wed · wk ${w.wkNum}</div></div>
+      <div class="lane inLane">${w.in.map(chip).join("")}</div>
+      <div class="lane outLane">${w.out.map(chip).join("")}</div>
+      <div class="balcell"><span class="lab">balance</span><span class="${w.bal<0?'neg':'pos'}">${gbp(w.bal)}</span></div>
+    </div>`).join("");
+
+  document.getElementById("holding").innerHTML = unscheduled.length
+    ? unscheduled.map(chip).join("")
+    : `<span class="holdempty">Nothing parked. Add a bill/receipt with no date, or drag a card down here to un-schedule it.</span>`;
+
+  drawTrend(weeks,fac);
+  buildTables();
+
+  const v=document.getElementById("verdict");
+  if(!S.opening){ v.className="verdict"; v.innerHTML=`⬆️ <b>Type your bank balance today</b> (top left) — the whole line keys off it.`; }
+  else if(firstBreach){ v.className="verdict bad"; v.innerHTML=`🔴 You breach your limit in the week of <b>${fmtD(firstBreach)}</b>. Lowest point <b>${gbp(low.b)}</b> (w/c ${fmtD(low.d)}). Push bills right or pull cash in before then.`; }
+  else { v.className="verdict"; v.innerHTML=`🟢 You stay above your limit the whole way. Tightest point <b>${gbp(low.b)}</b> (w/c ${fmtD(low.d)}).`; }
+  save();
+}
+
+function chip(e){
+  const cls=e.t==='in'?'cin':'cout';
+  const drag=e.gen? '' : `draggable="true" ondragstart="dragStart(event,'${e.t}',${e.idx})"`;
+  const tip=e.gen? 'auto — change at the top' : 'drag me to another week';
+  return `<span class="chip ${cls}${e.gen?' gen':''}" title="${tip}" ${drag}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
+}
+
+// drag & drop
+function dragStart(ev,type,idx){ ev.dataTransfer.setData("text/plain", type+":"+idx); ev.dataTransfer.effectAllowed="move"; }
+function dragOver(ev){ ev.preventDefault(); ev.currentTarget.classList.add("dragover"); ev.dataTransfer.dropEffect="move"; }
+function dragLeave(ev){ ev.currentTarget.classList.remove("dragover"); }
+function dropChip(ev){ ev.preventDefault(); ev.currentTarget.classList.remove("dragover");
+  const d=ev.dataTransfer.getData("text/plain"); if(!d) return;
+  const p=d.split(":"); const type=p[0], idx=+p[1];
+  const ws=ev.currentTarget.getAttribute("data-ws");
+  if(S[type] && S[type][idx]){ S[type][idx].d=ws; render(); } }
+function dropHold(ev){ ev.preventDefault(); ev.currentTarget.classList.remove("dragover");
+  const d=ev.dataTransfer.getData("text/plain"); if(!d) return;
+  const p=d.split(":"); if(S[p[0]] && S[p[0]][+p[1]]){ S[p[0]][+p[1]].d=""; render(); } }
+
+let qaType="out";
+function setQAType(t){ qaType=t;
+  document.getElementById("qaOut").classList.toggle("active",t==="out");
+  document.getElementById("qaIn").classList.toggle("active",t==="in"); }
+function quickAdd(){
+  const nEl=document.getElementById("qaName"), aEl=document.getElementById("qaAmt");
+  const name=nEl.value.trim(), amt=+aEl.value||0, type=qaType;
+  if(!name){ nEl.focus(); return; }
+  S[type].push({n:name,a:amt,d:""});
+  nEl.value=""; aEl.value=""; nEl.focus(); render();
+}
+function toggleDetail(){
+  const d=document.getElementById("detail"), b=document.getElementById("detailBtn");
+  const show=d.style.display==="none"; d.style.display=show?"block":"none";
+  b.textContent=(show?"▾":"▸")+" Detailed view (all bills & receipts)";
+}
+
+function drawTrend(weeks,fac){
+  const W=Math.max(weeks.length*52,620), H=160, padL=52, padR=16, padV=20;
+  const vals=weeks.map(w=>w.bal); const mn=Math.min(0,-fac,...vals), mx=Math.max(0,...vals); const range=(mx-mn)||1;
+  const x=i=>padL+i*((W-padL-padR)/(weeks.length-1||1));
+  const y=v=>H-padV-((v-mn)/range)*(H-2*padV);
+  const zeroY=y(0);
+  const kfmt=v=>{ const a=Math.abs(v); return (v<0?"-£":"£")+(a>=1000?Math.round(a/1000)+"k":Math.round(a)); };
+  // y-axis ticks
+  let ticks=[mx,(mx+mn)/2,0,mn].filter((v,i,arr)=>arr.findIndex(z=>Math.abs(z-v)<1)===i);
+  let yaxis=ticks.map(v=>`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#222a34" stroke-width="1"/><text x="6" y="${y(v)+3}" fill="#8b97a6" font-size="10">${kfmt(v)}</text>`).join("");
+  let pts=weeks.map((w,i)=>`${x(i)},${y(w.bal)}`).join(" ");
+  let dots=weeks.map((w,i)=>`<circle cx="${x(i)}" cy="${y(w.bal)}" r="3" fill="${w.bal<0?'#f85149':'#3fb950'}"/>`).join("");
+  let lbls=weeks.map((w,i)=>i%2===0?`<text x="${x(i)}" y="${H-5}" fill="#8b97a6" font-size="9" text-anchor="middle">${w.wed.getDate()}/${w.wed.getMonth()+1}</text>`:"").join("");
+  const svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" preserveAspectRatio="none" style="min-width:${W}px">
+    ${yaxis}
+    <line x1="${padL}" y1="${zeroY}" x2="${W-padR}" y2="${zeroY}" stroke="#8b97a6" stroke-dasharray="3 3" stroke-width="1"/>
+    ${fac>0?`<line x1="${padL}" y1="${y(-fac)}" x2="${W-padR}" y2="${y(-fac)}" stroke="#f85149" stroke-dasharray="2 4" stroke-width="1"/>`:""}
+    <polyline points="${pts}" fill="none" stroke="#58a6ff" stroke-width="2"/>${dots}${lbls}</svg>`;
+  const wrap=document.getElementById("trend"); wrap.style.overflowX="auto"; wrap.innerHTML=svg;
+}
+
+function buildTables(){
+  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>ob.appendChild(rowEl(it,i,"out")));
+  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>ib.appendChild(rowEl(it,i,"in")));
+}
+function rowEl(it,i,type){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`
+    <td><input class="nm2" value="${(it.n||'').replace(/"/g,'&quot;')}" onchange="upd('${type}',${i},'n',this.value)"></td>
+    <td style="text-align:right"><input class="amt2" type="number" value="${it.a}" onchange="upd('${type}',${i},'a',this.value)"></td>
+    <td><input type="date" value="${it.d}" onchange="upd('${type}',${i},'d',this.value)"></td>
+    <td><button class="del" onclick="delItem('${type}',${i})">✕</button></td>`;
+  return tr;
+}
+function upd(type,i,k,val){ S[type][i][k]=(k==='a')?(+val||0):val; render(); }
+function delItem(type,i){ S[type].splice(i,1); render(); }
+function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:0,d:""}); render(); }
+
+["opening","facility","payroll","payday","bakerAmt","bakerCap","bakerStart"].forEach(k=>{
+  document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
+});
+
+const PW="Milions!";
+function unlock(){ if(document.getElementById("pw").value===PW){ sessionStorage.setItem("dgc_cf_unlocked","yes"); document.getElementById("lock").style.display="none"; } else { document.getElementById("pwerr").textContent="Wrong password — try again."; document.getElementById("pw").select(); } }
+if(sessionStorage.getItem("dgc_cf_unlocked")==="yes"){ document.getElementById("lock").style.display="none"; }
+
+load(); render(); snapLabel();
+</script>
+</body>
+</html>
