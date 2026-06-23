@@ -360,7 +360,7 @@ function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:
   document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
 });
 
-const PW="Milions!";
+const PW="Millions!";
 function unlock(){ if(document.getElementById("pw").value===PW){ sessionStorage.setItem("dgc_cf_unlocked","yes"); document.getElementById("lock").style.display="none"; } else { document.getElementById("pwerr").textContent="Wrong password — try again."; document.getElementById("pw").select(); } }
 if(sessionStorage.getItem("dgc_cf_unlocked")==="yes"){ document.getElementById("lock").style.display="none"; }
 
