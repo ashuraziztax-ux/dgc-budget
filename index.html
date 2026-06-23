@@ -202,7 +202,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v3";
+const APP_VERSION="v4";
 let remoteVersion=null, updateShown=false;
 function metaUrl(){ return DB+"/meta/version.json"+(idToken?("?auth="+idToken):""); }
 function checkVersion(v){ if(v && v!==APP_VERSION && !updateShown){ updateShown=true; remoteVersion=v; showUpdateBar(); } }
@@ -424,7 +424,7 @@ function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:
 
 const KEY="AIzaSyCPuh1-EdNqzl4rHa5hcPJV_djZwU4Zxis";
 let idToken=null, refreshTok=null, tokExp=0;
-function setTokens(id,rt,exp){ idToken=id; refreshTok=rt; tokExp=Date.now()+((parseInt(exp)||3600)*1000); sessionStorage.setItem("dgc_auth",JSON.stringify({idToken:id,refreshTok:rt,tokExp:tokExp})); }
+function setTokens(id,rt,exp){ idToken=id; refreshTok=rt; tokExp=Date.now()+((parseInt(exp)||3600)*1000); localStorage.setItem("dgc_auth",JSON.stringify({idToken:id,refreshTok:rt,tokExp:tokExp})); }
 async function ensureToken(){
   if(!refreshTok || Date.now()<tokExp-300000) return;
   try{ const r=await fetch("https://securetoken.googleapis.com/v1/token?key="+KEY,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"grant_type=refresh_token&refresh_token="+encodeURIComponent(refreshTok)});
@@ -442,7 +442,7 @@ async function signIn(){
   }catch(e){ err.textContent="Couldn't sign in — check your connection."; }
 }
 function tryAutoLogin(){
-  try{ const a=JSON.parse(sessionStorage.getItem("dgc_auth"));
+  try{ const a=JSON.parse(localStorage.getItem("dgc_auth"));
     if(a && a.refreshTok){ idToken=a.idToken; refreshTok=a.refreshTok; tokExp=a.tokExp; document.getElementById("lock").style.display="none"; ensureToken().then(cloudInit); }
   }catch(e){}
 }
