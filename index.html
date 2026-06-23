@@ -125,9 +125,6 @@
     <div class="field"><label>Overdraft (£)</label><input id="facility" type="number" class="sm" placeholder="0"></div>
     <div class="field"><label>Payroll £/fortnight</label><input id="payroll" type="number" class="sm" value="16000"></div>
     <div class="field"><label>Next payday</label><input id="payday" type="date" value="2026-07-03"></div>
-    <div class="field"><label>Baker £/payment (in)</label><input id="bakerAmt" type="number" class="sm" value="22595.34"></div>
-    <div class="field"><label>Baker total left</label><input id="bakerCap" type="number" class="sm" value="67786.02"></div>
-    <div class="field"><label>Baker next pay</label><input id="bakerStart" type="date" value="2026-06-26"></div>
   </div>
 
   <div id="verdict" class="verdict"></div>
@@ -186,7 +183,6 @@ const FULLMON = ["January","February","March","April","May","June","July","Augus
 
 const DEFAULTS = {
   opening:"", facility:"", payroll:16000, payday:"2026-07-03",
-  bakerAmt:22595.34, bakerCap:67786.02, bakerStart:"2026-06-26",
   out:[
     {n:"Fairgreens", a:20000, d:"2026-06-30"},
     {n:"AV Craine", a:15000, d:"2026-06-30"},
@@ -206,6 +202,9 @@ const DEFAULTS = {
     {n:"Hermeq", a:10000, d:""}
   ],
   in:[
+    {n:"Baker 1/3", a:22595.34, d:"2026-06-26"},
+    {n:"Baker 2/3", a:22595.34, d:"2026-07-10"},
+    {n:"Baker 3/3", a:22595.34, d:"2026-07-24"},
     {n:"BA4 AFP4 (Dandara)", a:110000, d:"2026-06-30"},
     {n:"BA4 Final Account", a:41000, d:"2026-07-07"},
     {n:"Manx Utilities", a:30000, d:"2026-07-21"},
@@ -253,14 +252,11 @@ function allEvents(){
   S.in.forEach((x,i)=>ev.push({n:x.n,a:Math.abs(+x.a||0),d:x.d,t:"in",idx:i}));
   const pay=+S.payroll||0; let pd=new Date(S.payday).getTime();
   while(pd<=END.getTime()){ if(pd>=START.getTime()-WK) ev.push({n:"Payroll",a:-pay,d:iso(new Date(pd)),t:"out",gen:true}); pd+=2*WK; }
-  const bAmt=+S.bakerAmt||0; let cap=+S.bakerCap||0; let bd=new Date(S.bakerStart).getTime(); const bk=[];
-  while(bd<=END.getTime() && cap>0.5 && bAmt>0){ const amt=Math.min(bAmt,cap); bk.push({amt:amt,d:iso(new Date(bd))}); cap-=amt; bd+=2*WK; }
-  bk.forEach((b,k)=>ev.push({n:"Baker "+(k+1)+"/"+bk.length,a:b.amt,d:b.d,t:"in",gen:true}));
   return ev;
 }
 
 function render(){
-  ["opening","facility","payroll","payday","bakerAmt","bakerCap","bakerStart"].forEach(k=>{document.getElementById(k).value=S[k];});
+  ["opening","facility","payroll","payday"].forEach(k=>{document.getElementById(k).value=S[k];});
 
   const weeks=buildWeeks(); const n=weeks.length; const unscheduled=[];
   allEvents().forEach(e=>{ if(!e.d){ unscheduled.push(e); return; } const i=wkIndex(e.d,n); weeks[i][e.a<0?"out":"in"].push(e); });
@@ -378,7 +374,7 @@ function upd(type,i,k,val){ S[type][i][k]=(k==='a')?(+val||0):val; render(); }
 function delItem(type,i){ S[type].splice(i,1); render(); }
 function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:0,d:""}); render(); }
 
-["opening","facility","payroll","payday","bakerAmt","bakerCap","bakerStart"].forEach(k=>{
+["opening","facility","payroll","payday"].forEach(k=>{
   document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
 });
 
