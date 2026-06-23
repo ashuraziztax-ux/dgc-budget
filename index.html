@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>DGC Cash Flow — timeline</title>
 <style>
   :root{
@@ -101,6 +104,8 @@
   .cloudbadge{display:inline-block;font-size:11px;padding:3px 10px;border-radius:20px;margin:2px 0 14px;font-weight:600;border:1px solid var(--line);color:var(--dim)}
   .cloudbadge.live{color:var(--in);border-color:var(--in);background:rgba(63,185,80,.12)}
   .cloudbadge.off{color:var(--warn);border-color:var(--warn);background:rgba(210,153,34,.12)}
+  .updbar{position:fixed;left:0;right:0;bottom:0;background:var(--accent);color:#0b0f14;font-weight:700;font-size:14px;padding:13px 16px;text-align:center;z-index:9998;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
+  .updbar button{margin-left:10px;background:#0b0f14;color:#fff;border:none;border-radius:6px;padding:8px 16px;font-weight:700;cursor:pointer;font-size:13px}
   .lockscreen{position:fixed;inset:0;background:#0e1116;z-index:9999;display:flex;align-items:center;justify-content:center}
   .lockbox{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:30px;width:300px;text-align:center}
   .lockbox .lt{font-size:20px;font-weight:700;margin-bottom:16px}
@@ -179,35 +184,6 @@
   </div>
   <div class="savenote" id="saveNote"></div>
 
-  <button class="toggle" id="legalBtn" onclick="toggleLegal()">▸ Legal — getting a government site (Dreemskerry / tarmac)</button>
-  <div id="legalSec" style="display:none">
-    <div class="verdict" style="margin-top:12px">
-      <b>The play.</b> When Government lets you use its land it normally goes out to an open Expression of Interest (same as the Douglas Bay Yacht Club). To skip that and get it directly, you argue an <b>exemption</b> — a written, documented justification, signed off by senior Treasury finance (Chief / Deputy CFO), on the grounds that you're the <b>only credible operator</b> delivering a clear <b>public benefit</b>. It's not a guaranteed win — it's a case you argue. Plan B is to win the open EOI on <b>social value</b> (cheaper public roads, local jobs, breaking the monopoly), not on price.
-    </div>
-
-    <h2 class="sec">What "arm's length" means — plainly</h2>
-    <div class="verdict">
-      It means doing the deal as if you and the Government were <b>two complete strangers</b> — each looking after their own side, at a <b>fair market price</b>, nobody doing anybody a favour. The test: if someone later asks <i>"did he only get it cheap because he knows someone?"</i> the answer is obviously no — there was a proper valuation, a fair rent, it's all written down, and nobody with a personal connection pushed it through. Mates' rates = <b>not</b> arm's length. A deal a stranger would have got on the open market = arm's length.
-      <div style="margin-top:10px;color:var(--dim);font-size:13px">To make it arm's length: ① an <b>independent valuation</b> sets the rent (or a documented reason if it's below market); ② <b>market-standard terms</b> (proper lease, rent reviews); ③ <b>no conflict of interest</b> — anyone connected declares it and steps back; ④ the decision is <b>recorded in writing with the reasons</b>; ⑤ ideally still <b>tested against the market</b>, or a documented exemption explaining why not.</div>
-    </div>
-
-    <h2 class="sec">How we'd actually do it</h2>
-    <table><tbody>
-      <tr><td style="width:26px;color:var(--accent);font-weight:700">1</td><td>Build the written case: <b>only credible operator + clear public benefit</b> (cheaper public roads, local jobs, breaking a supply monopoly, import substitution).</td></tr>
-      <tr><td style="color:var(--accent);font-weight:700">2</td><td>Get an <b>independent valuation</b> so the rent is demonstrably fair — this is what makes it arm's length.</td></tr>
-      <tr><td style="color:var(--accent);font-weight:700">3</td><td>Put it to the owning department — <b>DEFA</b> for minerals/quarrying; <b>Public Estates &amp; Housing (DoI)</b> / <b>Dept for Enterprise</b> for the land/yard.</td></tr>
-      <tr><td style="color:var(--accent);font-weight:700">4</td><td>They seek the <b>non-competitive-action approval</b> (CFO / Deputy CFO sign-off). A summary of every such approval above the tender threshold is <b>published on gov.im</b> — so it has to be defensible.</td></tr>
-      <tr><td style="color:var(--accent);font-weight:700">5</td><td><b>Fallback:</b> if they insist on an open EOI, win it on <b>social value</b>, not price.</td></tr>
-    </tbody></table>
-
-    <h2 class="sec">Examples &amp; precedent</h2>
-    <div class="verdict">
-      <b>Isle of Man — it's an allowed, logged route.</b> The Government Procurement Policy advertises contracts of £10,000+, but permits <b>non-competitive ("exemption") awards</b> with senior approval and <b>publishes a summary of each one</b> above the tender threshold. So direct awards do happen — transparently. <span style="color:var(--dim);font-size:12px">[IoM Government Procurement Policy 2017; Financial Regulations 2026, D 4.3 &amp; C 1.1(f)]</span>
-      <div style="margin-top:10px"><b>UK textbook precedent (the principle).</b> Local Government Act 1972, s123 says councils must get "best consideration reasonably obtainable" for land — <b>but</b> the General Disposal Consent (England) 2003 lets them dispose at an <b>undervalue of up to £2m</b>, with no central-government consent, where it promotes the <b>economic, social or environmental well-being</b> of the area. That is the established legal mechanism for <i>"public benefit can justify departing from pure highest-price."</i> <span style="color:var(--dim);font-size:12px">[LGA 1972 s123; General Disposal Consent 2003 (gov.uk); Practical Law]</span></div>
-      <div style="margin-top:10px;color:var(--warn);font-size:12px">⚠ IoM ≠ UK law — the UK example is illustrative, not binding here, but it mirrors the IoM's own best-value / social-value test. <b>Not legal advice — confirm with an IoM advocate before relying on any of this.</b></div>
-    </div>
-  </div>
-
 <script>
 const START = new Date("2026-06-23");   // Tuesday
 const END   = new Date("2026-09-29");
@@ -226,11 +202,19 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
+const APP_VERSION="v3";
+let remoteVersion=null, updateShown=false;
+function metaUrl(){ return DB+"/meta/version.json"+(idToken?("?auth="+idToken):""); }
+function checkVersion(v){ if(v && v!==APP_VERSION && !updateShown){ updateShown=true; remoteVersion=v; showUpdateBar(); } }
+function showUpdateBar(){ if(document.getElementById("updbar"))return; const b=document.createElement("div"); b.id="updbar"; b.className="updbar"; b.innerHTML='🔄 A new version of the budget is ready. <button id="updbtn">Update now</button>'; document.body.appendChild(b); document.getElementById("updbtn").onclick=applyUpdate; }
+async function applyUpdate(){ await flushNow(); location.replace(location.pathname+"?v="+encodeURIComponent((remoteVersion||"")+"-"+new Date().getTime())); }
+async function flushNow(){ clearTimeout(putTimer); if(cloudReady){ await ensureToken(); try{ await fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); lastCloudJson=JSON.stringify(S);}catch(e){} } }
+function flashUpdated(){ const el=document.getElementById("cloudStatus"); if(!el)return; el.className="cloudbadge live"; el.textContent="↻ Updated just now"; setTimeout(()=>setCloudStatus("live"),2500); }
 
 function load(){ try{S=JSON.parse(localStorage.getItem("dgc_cf_v2"));}catch(e){S=null;} if(!S) S=JSON.parse(JSON.stringify(DEFAULTS)); }
 function save(){
   localStorage.setItem("dgc_cf_v2", JSON.stringify(S));
-  if(cloudReady){ clearTimeout(putTimer); putTimer=setTimeout(pushCloud,500); }
+  if(cloudReady){ clearTimeout(putTimer); putTimer=setTimeout(pushCloud,250); }
 }
 function dbUrl(){ return DB+"/budget.json"+(idToken?("?auth="+idToken):""); }
 async function pushCloud(){
@@ -249,18 +233,24 @@ async function cloudInit(){
     } else {
       cloudReady=true; pushCloud();
     }
+    // app-version: seed if empty, else flag if a newer build is live
+    try{ const mv=await (await fetch(metaUrl(),{cache:"no-store"})).json();
+      if(mv===null){ fetch(metaUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(APP_VERSION)}); remoteVersion=APP_VERSION; }
+      else { remoteVersion=mv; checkVersion(mv); }
+    }catch(e){}
     setCloudStatus("live");
-    setInterval(pollCloud,7000);
+    setInterval(pollCloud,4000);
   }catch(e){ cloudReady=false; setCloudStatus("offline"); }
 }
 async function pollCloud(){
+  await ensureToken();
+  fetch(metaUrl(),{cache:"no-store"}).then(r=>r.json()).then(v=>checkVersion(v)).catch(()=>{});
   if(dragging) return;
   const ae=document.activeElement; if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
-  await ensureToken();
   fetch(dbUrl(),{cache:"no-store"}).then(r=>r.json()).then(data=>{
     if(!data || !Array.isArray(data.out)) return;
     const remote=JSON.stringify(data);
-    if(remote!==lastCloudJson){ S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); }
+    if(remote!==lastCloudJson){ S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); flashUpdated(); }
   }).catch(()=>setCloudStatus("offline"));
 }
 function setCloudStatus(s){
@@ -389,11 +379,6 @@ function toggleDetail(){
   const show=d.style.display==="none"; d.style.display=show?"block":"none";
   b.textContent=(show?"▾":"▸")+" Detailed view (all bills & receipts)";
 }
-function toggleLegal(){
-  const d=document.getElementById("legalSec"), b=document.getElementById("legalBtn");
-  const show=d.style.display==="none"; d.style.display=show?"block":"none";
-  b.textContent=(show?"▾":"▸")+" Legal — getting a government site (Dreemskerry / tarmac)";
-}
 
 function drawTrend(weeks,fac){
   const W=Math.max(weeks.length*52,620), H=160, padL=52, padR=16, padV=20;
@@ -463,6 +448,7 @@ function tryAutoLogin(){
 }
 
 document.addEventListener("dragend",()=>{ dragging=false; });
+window.addEventListener("beforeunload",()=>{ if(cloudReady){ try{ fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); }catch(e){} } });
 load(); render(); snapLabel(); tryAutoLogin();
 </script>
 </body>
