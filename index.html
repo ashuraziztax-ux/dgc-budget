@@ -112,6 +112,29 @@
   .lockbox input{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:11px;font-size:16px;margin-bottom:10px}
   .lockbox button{width:100%;background:var(--accent);color:#0b0f14;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:15px;cursor:pointer}
   .pwerr{color:var(--out);font-size:12px;margin-top:8px;min-height:14px}
+  input.inv2,input.note2b{background:transparent;border:1px solid transparent;color:var(--text);font-size:13px;border-radius:6px;padding:5px 6px;width:100%}
+  input.inv2:hover,input.note2b:hover{border-color:var(--line)} input.inv2:focus,input.note2b:focus{outline:none;border-color:var(--accent);background:var(--card2)}
+  .paidbtn{background:rgba(63,185,80,.15);color:var(--in);border:1px solid rgba(63,185,80,.4);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer}
+  .paidbtn:hover{background:rgba(63,185,80,.3)}
+  .paidlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .paidrow{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;opacity:.85}
+  .paidrow .pname{text-decoration:line-through;color:var(--dim)}
+  .bringback{background:none;border:1px solid var(--line);color:var(--accent);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600}
+  .bringback:hover{border-color:var(--accent)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:none;align-items:center;justify-content:center;padding:16px}
+  .modal[style*="flex"]{display:flex}
+  .modalbox{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;width:360px;max-width:100%}
+  .modaltop{display:flex;justify-content:space-between;align-items:center;font-size:16px;font-weight:700;margin-bottom:14px}
+  .xbtn{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+  .modalbox label{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.03em;margin:10px 0 4px}
+  .modalbox .hintlbl{text-transform:none;letter-spacing:0;color:var(--dim);font-weight:400}
+  .modalbox input,.modalbox textarea{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:15px;font-family:inherit}
+  .modalbox input:focus,.modalbox textarea:focus{outline:none;border-color:var(--accent)}
+  .modalactions{display:flex;gap:8px;margin-top:18px}
+  .modalactions button{flex:1;border:none;border-radius:8px;padding:11px;font-weight:700;font-size:13px;cursor:pointer}
+  .paidbig{background:rgba(63,185,80,.2);color:var(--in)}
+  .delbig{background:rgba(248,81,73,.15);color:var(--out)}
+  .donebig{background:var(--accent);color:#0b0f14}
   .hint{font-size:11px;color:var(--dim);margin-top:4px}
 </style>
 </head>
@@ -123,6 +146,22 @@
       <input id="pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')signIn()">
       <button onclick="signIn()">Sign in</button>
       <div class="pwerr" id="pwerr"></div>
+    </div>
+  </div>
+
+  <div id="editor" class="modal" onclick="if(event.target===this)edClose()">
+    <div class="modalbox">
+      <div class="modaltop"><span id="ed_title">Bill</span><button class="xbtn" onclick="edClose()">✕</button></div>
+      <label>Name</label><input id="ed_name">
+      <label>Amount £</label><input id="ed_amt" type="number">
+      <label>Date</label><input id="ed_date" type="date">
+      <label>Invoice no. <span class="hintlbl">(search this in Outlook)</span></label><input id="ed_inv" placeholder="e.g. INV-2231">
+      <label>Comment <span class="hintlbl">(shows when you hover the card)</span></label><textarea id="ed_note" rows="3" placeholder="leave a note…"></textarea>
+      <div class="modalactions">
+        <button class="paidbig" id="ed_paidbtn" onclick="edPaidToggle()">✓ Mark paid</button>
+        <button class="delbig" onclick="edDelete()">Delete</button>
+        <button class="donebig" onclick="edClose()">Done</button>
+      </div>
     </div>
   </div>
 
@@ -164,13 +203,16 @@
   <div id="detail" style="display:none">
 
   <h2 class="sec">Money OUT — bills we owe</h2>
-  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Due date</th><th></th></tr></thead><tbody id="outBody"></tbody></table>
+  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Due date</th><th>Invoice</th><th>Comment</th><th></th><th></th></tr></thead><tbody id="outBody"></tbody></table>
   <button class="addbtn" onclick="addItem('out')">+ add a bill</button>
   <div class="hint">Payroll is added automatically along the line — set the amount and next payday at the top.</div>
 
   <h2 class="sec">Money IN — coming to us</h2>
-  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Date in</th><th></th></tr></thead><tbody id="inBody"></tbody></table>
+  <table><thead><tr><th>Who</th><th style="text-align:right">£</th><th>Date in</th><th>Invoice</th><th>Comment</th><th></th><th></th></tr></thead><tbody id="inBody"></tbody></table>
   <button class="addbtn" onclick="addItem('in')">+ add a receipt</button>
+
+  <button class="toggle" id="paidBtn" onclick="togglePaid()"><span>▸ Paid bills (</span><span id="paidCount">0</span>)</button>
+  <div id="paidWrap" style="display:none"><div id="paidList" class="paidlist"></div></div>
   </div>
 
   <div class="actions">
@@ -202,7 +244,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v5";
+const APP_VERSION="v6";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -289,8 +331,8 @@ function wkIndex(ds,n){ const i=Math.floor((new Date(ds).getTime()-START.getTime
 
 function allEvents(){
   const ev=[];
-  S.out.forEach((x,i)=>ev.push({n:x.n,a:-Math.abs(+x.a||0),d:x.d,t:"out",idx:i}));
-  S.in.forEach((x,i)=>ev.push({n:x.n,a:Math.abs(+x.a||0),d:x.d,t:"in",idx:i}));
+  S.out.forEach((x,i)=>{ if(x.paid) return; ev.push({n:x.n,a:-Math.abs(+x.a||0),d:x.d,t:"out",idx:i,inv:x.inv,note:x.note}); });
+  S.in.forEach((x,i)=>{ if(x.paid) return; ev.push({n:x.n,a:Math.abs(+x.a||0),d:x.d,t:"in",idx:i,inv:x.inv,note:x.note}); });
   const pay=+S.payroll||0; let pd=new Date(S.payday).getTime();
   while(pd<=END.getTime()){ if(pd>=START.getTime()-WK) ev.push({n:"Payroll",a:-pay,d:iso(new Date(pd)),t:"out",gen:true}); pd+=2*WK; }
   return ev;
@@ -343,8 +385,11 @@ function render(){
 function chip(e){
   const cls=e.t==='in'?'cin':'cout';
   const drag=e.gen? '' : `draggable="true" ondragstart="dragStart(event,'${e.t}',${e.idx})"`;
-  const tip=e.gen? 'auto — change at the top' : 'drag me to another week';
-  return `<span class="chip ${cls}${e.gen?' gen':''}" title="${tip}" ${drag}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
+  const click=e.gen? '' : `onclick="openEditor('${e.t}',${e.idx})"`;
+  let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note);
+  const tip=e.gen? 'auto — change at the top' : (tp.length?tp.join("  ·  "):"click to edit · drag to move");
+  const marks=(e.inv?' 📄':'')+(e.note?' 💬':'');
+  return `<span class="chip ${cls}${e.gen?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}${marks}</span></span>`;
 }
 
 // drag & drop
@@ -399,8 +444,9 @@ function drawTrend(weeks,fac){
 }
 
 function buildTables(){
-  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>ob.appendChild(rowEl(it,i,"out")));
-  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>ib.appendChild(rowEl(it,i,"in")));
+  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>{ if(!it.paid) ob.appendChild(rowEl(it,i,"out")); });
+  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>{ if(!it.paid) ib.appendChild(rowEl(it,i,"in")); });
+  renderPaid();
 }
 function rowEl(it,i,type){
   const tr=document.createElement("tr");
@@ -408,12 +454,48 @@ function rowEl(it,i,type){
     <td><input class="nm2" value="${(it.n||'').replace(/"/g,'&quot;')}" onchange="upd('${type}',${i},'n',this.value)"></td>
     <td style="text-align:right"><input class="amt2" type="number" value="${it.a}" onchange="upd('${type}',${i},'a',this.value)"></td>
     <td><input type="date" value="${it.d}" onchange="upd('${type}',${i},'d',this.value)"></td>
+    <td><input class="inv2" value="${(it.inv||'').replace(/"/g,'&quot;')}" placeholder="inv no." onchange="upd('${type}',${i},'inv',this.value)"></td>
+    <td><input class="note2b" value="${(it.note||'').replace(/"/g,'&quot;')}" placeholder="comment" onchange="upd('${type}',${i},'note',this.value)"></td>
+    <td><button class="paidbtn" title="Mark paid — moves to Paid bills" onclick="markPaid('${type}',${i})">paid</button></td>
     <td><button class="del" onclick="delItem('${type}',${i})">✕</button></td>`;
   return tr;
 }
+function renderPaid(){
+  const box=document.getElementById("paidList"); if(!box) return;
+  const items=[];
+  S.out.forEach((it,i)=>{ if(it.paid) items.push({it,i,type:"out"}); });
+  S.in.forEach((it,i)=>{ if(it.paid) items.push({it,i,type:"in"}); });
+  const c=document.getElementById("paidCount"); if(c) c.textContent=items.length;
+  box.innerHTML = items.length ? items.map(o=>`<div class="paidrow"><span class="pname">${(o.it.n||'').replace(/</g,'&lt;')} <b>${gbp(Math.abs(+o.it.a||0))}</b>${o.it.inv?` · 📄 ${(''+o.it.inv).replace(/</g,'&lt;')}`:''}</span><button class="bringback" onclick="unpay('${o.type}',${o.i})">↩ bring back</button></div>`).join("") : `<div class="holdempty">No paid bills yet. Tick a bill "paid" and it moves here.</div>`;
+}
+function markPaid(type,i){ if(S[type][i]){ S[type][i].paid=true; render(); } }
+function unpay(type,i){ if(S[type][i]){ delete S[type][i].paid; render(); } }
+function togglePaid(){ const w=document.getElementById("paidWrap"), b=document.getElementById("paidBtn"); const show=w.style.display==="none"; w.style.display=show?"block":"none"; b.firstChild.textContent=(show?"▾ ":"▸ ")+"Paid bills ("; }
 function upd(type,i,k,val){ S[type][i][k]=(k==='a')?(+val||0):val; render(); }
 function delItem(type,i){ S[type].splice(i,1); render(); }
 function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:0,d:""}); render(); }
+
+let edTarget=null;
+function openEditor(type,idx){
+  const it=S[type] && S[type][idx]; if(!it) return; edTarget={type,idx};
+  document.getElementById("ed_title").textContent=(type==='out'?'Bill (money out)':'Money in');
+  document.getElementById("ed_name").value=it.n||"";
+  document.getElementById("ed_amt").value=(it.a!=null?it.a:"");
+  document.getElementById("ed_date").value=it.d||"";
+  document.getElementById("ed_inv").value=it.inv||"";
+  document.getElementById("ed_note").value=it.note||"";
+  document.getElementById("ed_paidbtn").textContent = it.paid? "↩ Bring back" : "✓ Mark paid";
+  document.getElementById("editor").style.display="flex";
+}
+function edCommit(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it) return;
+  it.n=document.getElementById("ed_name").value;
+  it.a=+document.getElementById("ed_amt").value||0;
+  it.d=document.getElementById("ed_date").value;
+  it.inv=document.getElementById("ed_inv").value;
+  it.note=document.getElementById("ed_note").value; }
+function edClose(){ edCommit(); document.getElementById("editor").style.display="none"; edTarget=null; render(); }
+function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid) delete it.paid; else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
+function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
 
 ["opening","facility","payroll","payday"].forEach(k=>{
   document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
