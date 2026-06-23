@@ -170,6 +170,9 @@
     <button class="save" onclick="saveSnapshot()">💾 Save this version</button>
     <button onclick="revertSnapshot()">↩ Back to last save</button>
     <button onclick="window.print()">🖨 Print / PDF</button>
+    <button onclick="exportData()">⬇ Backup to file</button>
+    <button onclick="document.getElementById('importFile').click()">⬆ Restore from file</button>
+    <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importData(event)">
     <button class="danger" onclick="resetAll()">↺ Start over (original figures)</button>
   </div>
   <div class="savenote" id="saveNote"></div>
@@ -218,6 +221,25 @@ function fmtNow(){ const d=new Date(); return d.toLocaleString("en-GB",{weekday:
 function snapLabel(){ const t=localStorage.getItem("dgc_cf_snap_t"); const el=document.getElementById("saveNote"); if(el) el.textContent = t ? ("✓ Last saved: "+t+"  —  “Back to last save” returns here.") : "No version saved yet. Arrange it how you want, then hit “Save this version” so you can always come back to it."; }
 function saveSnapshot(){ localStorage.setItem("dgc_cf_snap", JSON.stringify(S)); localStorage.setItem("dgc_cf_snap_t", fmtNow()); snapLabel(); }
 function revertSnapshot(){ const s=localStorage.getItem("dgc_cf_snap"); if(!s){ alert("Nothing saved yet — hit “Save this version” first, then you can come back to it."); return; } if(confirm("Go back to your last saved version? Anything changed since the save will be lost.")){ S=JSON.parse(s); save(); render(); } }
+function exportData(){
+  const d=new Date(), stamp=d.toISOString().slice(0,10);
+  const blob=new Blob([JSON.stringify(S,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="dgc-budget-backup-"+stamp+".json";
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},100);
+}
+function importData(ev){
+  const f=ev.target.files[0]; if(!f){ return; }
+  const r=new FileReader();
+  r.onload=function(){
+    try{ const obj=JSON.parse(r.result);
+      if(obj && Array.isArray(obj.out) && Array.isArray(obj.in)){
+        if(confirm("Load this backup? It replaces what's on screen now.")){ S=obj; save(); render(); snapLabel(); }
+      } else { alert("That file doesn't look like a DGC budget backup."); }
+    }catch(e){ alert("Couldn't read that file — is it a budget backup (.json)?"); }
+  };
+  r.readAsText(f); ev.target.value="";
+}
 function gbp(n){ return (n<0?"-£":"£")+Math.abs(Math.round(n)).toLocaleString("en-GB"); }
 function fmtD(ds){ const d=new Date(ds); return d.getDate()+" "+MON[d.getMonth()]; }
 function iso(d){ return d.toISOString().slice(0,10); }
