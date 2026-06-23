@@ -114,8 +114,9 @@
   <div id="lock" class="lockscreen">
     <div class="lockbox">
       <div class="lt">🔒 DGC Budget</div>
-      <input id="pw" type="password" placeholder="Password" autofocus onkeydown="if(event.key==='Enter')unlock()">
-      <button onclick="unlock()">Open</button>
+      <input id="email" type="email" placeholder="Email" autocomplete="username" autofocus>
+      <input id="pw" type="password" placeholder="Password" autocomplete="current-password" onkeydown="if(event.key==='Enter')signIn()">
+      <button onclick="signIn()">Sign in</button>
       <div class="pwerr" id="pwerr"></div>
     </div>
   </div>
@@ -225,14 +226,17 @@ function save(){
   localStorage.setItem("dgc_cf_v2", JSON.stringify(S));
   if(cloudReady){ clearTimeout(putTimer); putTimer=setTimeout(pushCloud,500); }
 }
-function pushCloud(){
+function dbUrl(){ return DB+"/budget.json"+(idToken?("?auth="+idToken):""); }
+async function pushCloud(){
+  await ensureToken();
   const body=JSON.stringify(S); lastCloudJson=body;
-  fetch(DB+"/budget.json",{method:"PUT",headers:{"Content-Type":"application/json"},body:body})
-    .then(()=>setCloudStatus("live")).catch(()=>setCloudStatus("offline"));
+  fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:body})
+    .then(r=>setCloudStatus(r.ok?"live":"offline")).catch(()=>setCloudStatus("offline"));
 }
 async function cloudInit(){
   try{
-    const data=await (await fetch(DB+"/budget.json",{cache:"no-store"})).json();
+    await ensureToken();
+    const data=await (await fetch(dbUrl(),{cache:"no-store"})).json();
     if(data && Array.isArray(data.out) && Array.isArray(data.in)){
       S=data; lastCloudJson=JSON.stringify(data); localStorage.setItem("dgc_cf_v2",lastCloudJson);
       cloudReady=true; render(); snapLabel();
@@ -243,10 +247,11 @@ async function cloudInit(){
     setInterval(pollCloud,7000);
   }catch(e){ cloudReady=false; setCloudStatus("offline"); }
 }
-function pollCloud(){
+async function pollCloud(){
   if(dragging) return;
   const ae=document.activeElement; if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return;
-  fetch(DB+"/budget.json",{cache:"no-store"}).then(r=>r.json()).then(data=>{
+  await ensureToken();
+  fetch(dbUrl(),{cache:"no-store"}).then(r=>r.json()).then(data=>{
     if(!data || !Array.isArray(data.out)) return;
     const remote=JSON.stringify(data);
     if(remote!==lastCloudJson){ S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); }
@@ -421,12 +426,33 @@ function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:
   document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
 });
 
-const PW="Millions!";
-function unlock(){ if(document.getElementById("pw").value===PW){ sessionStorage.setItem("dgc_cf_unlocked","yes"); document.getElementById("lock").style.display="none"; } else { document.getElementById("pwerr").textContent="Wrong password — try again."; document.getElementById("pw").select(); } }
-if(sessionStorage.getItem("dgc_cf_unlocked")==="yes"){ document.getElementById("lock").style.display="none"; }
+const KEY="AIzaSyCPuh1-EdNqzl4rHa5hcPJV_djZwU4Zxis";
+let idToken=null, refreshTok=null, tokExp=0;
+function setTokens(id,rt,exp){ idToken=id; refreshTok=rt; tokExp=Date.now()+((parseInt(exp)||3600)*1000); sessionStorage.setItem("dgc_auth",JSON.stringify({idToken:id,refreshTok:rt,tokExp:tokExp})); }
+async function ensureToken(){
+  if(!refreshTok || Date.now()<tokExp-300000) return;
+  try{ const r=await fetch("https://securetoken.googleapis.com/v1/token?key="+KEY,{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:"grant_type=refresh_token&refresh_token="+encodeURIComponent(refreshTok)});
+    const d=await r.json(); if(d.id_token) setTokens(d.id_token,d.refresh_token,d.expires_in); }catch(e){}
+}
+async function signIn(){
+  const email=document.getElementById("email").value.trim(), pw=document.getElementById("pw").value, err=document.getElementById("pwerr");
+  if(!email||!pw){ err.textContent="Enter your email and password."; return; }
+  err.textContent="Signing in…";
+  try{
+    const r=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key="+KEY,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:email,password:pw,returnSecureToken:true})});
+    const d=await r.json();
+    if(d.idToken){ setTokens(d.idToken,d.refreshToken,d.expiresIn); document.getElementById("lock").style.display="none"; cloudInit(); }
+    else { err.textContent="Wrong email or password."; }
+  }catch(e){ err.textContent="Couldn't sign in — check your connection."; }
+}
+function tryAutoLogin(){
+  try{ const a=JSON.parse(sessionStorage.getItem("dgc_auth"));
+    if(a && a.refreshTok){ idToken=a.idToken; refreshTok=a.refreshTok; tokExp=a.tokExp; document.getElementById("lock").style.display="none"; ensureToken().then(cloudInit); }
+  }catch(e){}
+}
 
 document.addEventListener("dragend",()=>{ dragging=false; });
-load(); render(); snapLabel(); cloudInit();
+load(); render(); snapLabel(); tryAutoLogin();
 </script>
 </body>
 </html>
