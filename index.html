@@ -253,7 +253,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v8";
+const APP_VERSION="v9";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -369,7 +369,11 @@ function render(){
   const weeks=buildWeeks(); const n=weeks.length; const unscheduled=[];
   allEvents().forEach(e=>{ if(!e.d){ unscheduled.push(e); return; } const i=wkIndex(e.d,n); weeks[i][e.a<0?"out":"in"].push(e); });
 
-  let bal=+S.opening||0; const fac=+S.facility||0;
+  // paid items leave the timeline but the money has actually moved — adjust the starting balance
+  let paidAdj=0;
+  S.out.forEach(x=>{ if(x.paid) paidAdj-=Math.abs(+x.a||0); });   // paid bill = money out
+  S.in.forEach(x=>{ if(x.paid) paidAdj+=Math.abs(+x.a||0); });    // received = money in
+  let bal=(+S.opening||0)+paidAdj; const fac=+S.facility||0;
   let firstBreach=null, low={b:Infinity,d:null};
   weeks.forEach(w=>{ const din=w.in.reduce((s,e)=>s+e.a,0); const dout=w.out.reduce((s,e)=>s+e.a,0);
     bal+=din+dout; w.bal=bal; if(bal<low.b){low={b:bal,d:w.start};} if(bal< -fac && !firstBreach) firstBreach=w.start; });
