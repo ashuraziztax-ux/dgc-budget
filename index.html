@@ -253,7 +253,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v9";
+const APP_VERSION="v10";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -418,8 +418,7 @@ function chip(e){
   const click=e.gen? '' : `onclick="openEditor('${e.t}',${e.idx})"`;
   let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note); if(e.rep) tp.push("repeats monthly");
   const tip=e.gen? 'auto — change at the top' : (tp.length?tp.join("  ·  "):"click to edit · drag to move");
-  const marks=(e.rep?' 🔁':'')+(e.inv?' 📄':'')+(e.note?' 💬':'');
-  return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}${marks}</span></span>`;
+  return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
 }
 
 // drag & drop
