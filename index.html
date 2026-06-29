@@ -56,6 +56,10 @@
   .chip.gen{opacity:.85;border:1px dashed rgba(139,151,166,.35)}
   .chip .amt{font-weight:700;display:block}
   .chip .nm{opacity:.85;font-size:10px}
+  .notedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#f5c518}
+  .chip{position:relative}
+  .chip .notedot{position:absolute;top:5px;right:6px}
+  .legend{font-size:12px;color:var(--dim);margin:0 0 10px;display:flex;align-items:center;gap:7px}
   .balcell{padding:8px 9px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
   .balcell .lab{font-size:9px;color:var(--dim);text-transform:uppercase;display:block;text-align:left;font-weight:600}
   .pos{color:var(--in)} .neg{color:var(--out)}
@@ -185,6 +189,7 @@
 
   <div class="trendwrap"><h2>Balance through time</h2><div id="trend"></div></div>
 
+  <div class="legend"><span class="notedot"></span> A yellow dot means the card has a note — hover over the card to read it.</div>
   <div class="scroller"><div class="tlwrap">
     <div class="monthband" id="monthband"></div>
     <div class="timeline" id="timeline"></div>
@@ -253,7 +258,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v10";
+const APP_VERSION="v11";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -418,7 +423,7 @@ function chip(e){
   const click=e.gen? '' : `onclick="openEditor('${e.t}',${e.idx})"`;
   let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note); if(e.rep) tp.push("repeats monthly");
   const tip=e.gen? 'auto — change at the top' : (tp.length?tp.join("  ·  "):"click to edit · drag to move");
-  return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}><span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
+  return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}>${e.note?'<span class="notedot"></span>':''}<span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
 }
 
 // drag & drop
