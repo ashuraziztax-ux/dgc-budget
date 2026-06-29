@@ -258,7 +258,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v11";
+const APP_VERSION="v12";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -472,7 +472,7 @@ function drawTrend(weeks,fac){
   const zeroY=y(0);
   const kfmt=v=>{ const a=Math.abs(v); return (v<0?"-£":"£")+(a>=1000?Math.round(a/1000)+"k":Math.round(a)); };
   // y-axis ticks
-  let ticks=[mx,(mx+mn)/2,0,mn].filter((v,i,arr)=>arr.findIndex(z=>Math.abs(z-v)<1)===i);
+  let ticks=[]; [mx,(mx+mn)/2,0,mn].sort((a,b)=>b-a).forEach(v=>{ if(!ticks.some(k=>Math.abs(y(k)-y(v))<16)) ticks.push(v); });
   let yaxis=ticks.map(v=>`<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="#222a34" stroke-width="1"/><text x="6" y="${y(v)+3}" fill="#8b97a6" font-size="10">${kfmt(v)}</text>`).join("");
   let pts=weeks.map((w,i)=>`${x(i)},${y(w.bal)}`).join(" ");
   let dots=weeks.map((w,i)=>`<circle cx="${x(i)}" cy="${y(w.bal)}" r="3" fill="${w.bal<0?'#f85149':'#3fb950'}"/>`).join("");
