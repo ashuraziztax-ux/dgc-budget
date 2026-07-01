@@ -62,6 +62,9 @@
   .legend{font-size:12px;color:var(--dim);margin:0 0 10px;display:flex;align-items:center;gap:7px}
   .balcell{padding:8px 9px;text-align:right;font-variant-numeric:tabular-nums;font-weight:700;font-size:13px}
   .balcell .lab{font-size:9px;color:var(--dim);text-transform:uppercase;display:block;text-align:left;font-weight:600}
+  .wkstart{display:flex;justify-content:space-between;padding:5px 8px;border-bottom:1px solid var(--line);font-size:10px;color:var(--dim)}
+  .wkstart .v{font-variant-numeric:tabular-nums;font-weight:700;color:var(--text)}
+  .applybtn{background:var(--accent);color:#0b0f14;border:none;border-radius:8px;padding:9px 16px;font-weight:700;font-size:14px;cursor:pointer}
   .wkstmt{border-bottom:1px solid var(--line);padding:6px 8px;font-size:10px}
   .wkstmt .sl{display:flex;justify-content:space-between;padding:1px 0;color:var(--dim)}
   .wkstmt .sl .v{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)}
@@ -223,6 +226,7 @@
     <div class="field"><label>Overdraft (£)</label><input id="facility" type="number" class="sm" placeholder="0"></div>
     <div class="field"><label>Payroll £/fortnight</label><input id="payroll" type="number" class="sm" value="16000"></div>
     <div class="field"><label>Next payday</label><input id="payday" type="date" value="2026-07-03"></div>
+    <div class="field"><label>&nbsp;</label><button class="applybtn" id="applybtn" onclick="applyTopBar()">Apply</button></div>
   </div>
 
   <div id="verdict" class="verdict"></div>
@@ -286,7 +290,7 @@
 const DAY = 86400000, WK = 7*DAY;
 function mondayOf(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); const wd=(x.getDay()+6)%7; x.setDate(x.getDate()-wd); return x; }  // Monday of that week
 const NOWDATE = new Date();
-const START = mondayOf(new Date(NOWDATE.getTime() - 21*DAY));   // ~3 weeks of history behind today
+const START = mondayOf(NOWDATE);                                // timeline starts THIS week (today's balance up front)
 const END   = new Date(mondayOf(NOWDATE).getTime() + 16*WK);    // ~16 weeks forward
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const FULLMON = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -302,7 +306,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v22";
+const APP_VERSION="v23";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -425,7 +429,7 @@ function allEvents(){
 }
 
 function render(){
-  ["opening","facility","payroll","payday"].forEach(k=>{document.getElementById(k).value=S[k];});
+  ["opening","facility","payroll","payday"].forEach(k=>{ const el=document.getElementById(k); if(el && document.activeElement!==el) el.value=S[k]; });
 
   const weeks=buildWeeks(); const n=weeks.length; const unscheduled=[];
   allEvents().forEach(e=>{ if(!e.d){ unscheduled.push(e); return; } const i=wkIndex(e.d,n); weeks[i][e.a<0?"out":"in"].push(e); });
@@ -455,14 +459,10 @@ function render(){
   document.getElementById("timeline").innerHTML = weeks.map(w=>`
     <div class="wk${w.now?' now':''}" data-ws="${iso(w.start)}" ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropChip(event)">
       <div class="wkhead"><div class="d">${w.start.getDate()} ${MON[w.start.getMonth()]}</div><div class="mo">${w.now?'● NOW':'w/c'}</div></div>
-      <div class="wkstmt">
-        <div class="sl"><span>Start</span><span class="v">${gbp(w.open)}</span></div>
-        <div class="sl"><span>In</span><span class="v inv">${w.din?"+"+gbp(w.din):"—"}</span></div>
-        <div class="sl"><span>Out</span><span class="v outv">${w.dout?"−"+gbp(Math.abs(w.dout)):"—"}</span></div>
-        <div class="sl end"><span>End</span><span class="v ${w.bal<0?'neg':'pos'}">${gbp(w.bal)}</span></div>
-      </div>
+      <div class="wkstart"><span>Start</span><span class="v ${w.open<0?'neg':'pos'}">${gbp(w.open)}</span></div>
       <div class="lane inLane">${w.in.map(chip).join("")}</div>
       <div class="lane outLane">${w.out.map(chip).join("")}</div>
+      <div class="balcell"><span class="lab">left after week</span><span class="${w.bal<0?'neg':'pos'}">${gbp(w.bal)}</span></div>
     </div>`).join("");
   const _nowEl=document.querySelector(".wk.now"), _sc=document.querySelector(".scroller");
   if(_nowEl && _sc) _sc.scrollLeft = Math.max(0, _nowEl.offsetLeft - 150);   // auto-scroll to this week
@@ -627,9 +627,13 @@ function edRemovePayment(k){ if(!edTarget) return; const it=S[edTarget.type][edT
   render(); openEditor(edTarget.type, edTarget.idx); }
 function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
 
-["opening","facility","payroll","payday"].forEach(k=>{
-  document.getElementById(k).addEventListener("input",e=>{ S[k]=e.target.value; render(); });
-});
+function applyTopBar(){
+  S.opening=document.getElementById("opening").value; S.facility=document.getElementById("facility").value;
+  S.payroll=document.getElementById("payroll").value; S.payday=document.getElementById("payday").value;
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  render();
+  const b=document.getElementById("applybtn"); if(b){ b.textContent="✓ Applied"; setTimeout(()=>{b.textContent="Apply";},1200); }
+}
 
 const KEY="AIzaSyCPuh1-EdNqzl4rHa5hcPJV_djZwU4Zxis";
 let idToken=null, refreshTok=null, tokExp=0;
