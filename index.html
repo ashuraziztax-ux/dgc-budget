@@ -274,7 +274,6 @@
   </div>
 
   <div class="actions">
-    <button class="save" onclick="saveSnapshot()">💾 Save this version</button>
     <button onclick="revertSnapshot()">↩ Back to last save</button>
     <button onclick="window.print()">🖨 Print / PDF</button>
     <button onclick="exportData()">⬇ Backup to file</button>
@@ -282,9 +281,7 @@
     <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importData(event)">
     <button class="revbtn" onclick="document.getElementById('revFile').click()">💳 Import from Revolut (CSV)</button>
     <input type="file" id="revFile" accept=".csv,text/csv" style="display:none" onchange="importRevolut(event)">
-    <button class="danger" onclick="resetAll()">↺ Start over (original figures)</button>
   </div>
-  <div class="savenote" id="saveNote"></div>
 
 <script>
 const DAY = 86400000, WK = 7*DAY;
@@ -306,7 +303,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v23";
+const APP_VERSION="v24";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
