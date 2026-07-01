@@ -135,8 +135,12 @@
   .paidbtn{background:rgba(63,185,80,.15);color:var(--in);border:1px solid rgba(63,185,80,.4);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer}
   .paidbtn:hover{background:rgba(63,185,80,.3)}
   .paidlist{display:flex;flex-direction:column;gap:6px;margin-top:8px}
-  .paidrow{display:flex;justify-content:space-between;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;opacity:.85}
+  .paidrow{display:flex;flex-direction:column;gap:6px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:13px;opacity:.9}
+  .prtop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .pleft{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
   .paidrow .pname{text-decoration:line-through;color:var(--dim)}
+  .ptag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;background:var(--line);color:var(--dim);white-space:nowrap;display:inline-block}
+  .ptag.del{background:rgba(248,81,73,.15);color:var(--out)}
   .bringback{background:none;border:1px solid var(--line);color:var(--accent);border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;font-weight:600}
   .bringback:hover{border-color:var(--accent)}
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:10001;display:none;align-items:center;justify-content:center;padding:16px}
@@ -303,7 +307,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v26";
+const APP_VERSION="v27";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -351,7 +355,7 @@ async function pollCloud(){
     if(remote!==lastCloudJson){ const changed=diffNames(S,data); S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); flashUpdated(); highlightChanged(changed); }
   }).catch(()=>setCloudStatus("offline"));
 }
-function _sig(x){ return (x.a)+"|"+(x.d||"")+"|"+(x.paid?1:0)+"|"+((x.payments||[]).length)+"|"+(x.paidAmt||0); }
+function _sig(x){ return (x.a)+"|"+(x.d||"")+"|"+(x.paid?1:0)+"|"+(x.deleted?1:0)+"|"+((x.payments||[]).length)+"|"+(x.paidAmt||0); }
 function diffNames(oldS,nd){ const om={}; (oldS.out||[]).concat(oldS.in||[]).forEach(x=>{ om[x.n]=_sig(x); }); const ch=new Set();
   (nd.out||[]).concat(nd.in||[]).forEach(x=>{ if(om[x.n]!==_sig(x)) ch.add(x.n); }); return ch; }
 function highlightChanged(names){ if(!names||!names.size) return;
@@ -404,7 +408,7 @@ function amtPaid(x){ const t=Math.abs(+x.a||0); if(x.paid) return t; let p=(x.pa
 function allEvents(){
   const ev=[];
   function pushItem(x,i,type){
-    if(x.paid) return;
+    if(x.paid||x.deleted) return;   // deleted cards leave the timeline (unpaid remainder dropped) — money already paid is kept via amtPaid below
     const total=Math.abs(+x.a||0), sign=(type==="out"?-1:1), paidSoFar=amtPaid(x);
     if(x.repeat==="monthly" && x.d){
       monthlyDates(x.d).forEach((dd,k)=>{
@@ -544,8 +548,8 @@ function drawTrend(weeks,fac){
 }
 
 function buildTables(){
-  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>{ if(!it.paid){ ob.appendChild(rowEl(it,i,"out")); const pr=payRow(it); if(pr) ob.appendChild(pr); } });
-  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>{ if(!it.paid){ ib.appendChild(rowEl(it,i,"in")); const pr=payRow(it); if(pr) ib.appendChild(pr); } });
+  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>{ if(!it.paid && !it.deleted){ ob.appendChild(rowEl(it,i,"out")); const pr=payRow(it); if(pr) ob.appendChild(pr); } });
+  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>{ if(!it.paid && !it.deleted){ ib.appendChild(rowEl(it,i,"in")); const pr=payRow(it); if(pr) ib.appendChild(pr); } });
   renderPaid();
 }
 function payRow(it){
@@ -571,16 +575,36 @@ function rowEl(it,i,type){
 function renderPaid(){
   const box=document.getElementById("paidList"); if(!box) return;
   const items=[];
-  S.out.forEach((it,i)=>{ if(it.paid) items.push({it,i,type:"out"}); });
-  S.in.forEach((it,i)=>{ if(it.paid) items.push({it,i,type:"in"}); });
+  S.out.forEach((it,i)=>{ if(it.paid||it.deleted) items.push({it,i,type:"out"}); });
+  S.in.forEach((it,i)=>{ if(it.paid||it.deleted) items.push({it,i,type:"in"}); });
   const c=document.getElementById("paidCount"); if(c) c.textContent=items.length;
-  box.innerHTML = items.length ? items.map(o=>`<div class="paidrow"><span class="pname">${(o.it.n||'').replace(/</g,'&lt;')} <b>${gbp(Math.abs(+o.it.a||0))}</b>${o.it.inv?` · 📄 ${(''+o.it.inv).replace(/</g,'&lt;')}`:''}</span><button class="bringback" onclick="unpay('${o.type}',${o.i})">↩ bring back</button></div>`).join("") : `<div class="holdempty">No paid bills yet. Tick a bill "paid" and it moves here.</div>`;
+  if(!items.length){ box.innerHTML=`<div class="holdempty">Nothing here yet. Mark a bill "paid", or delete a part-paid bill — the money already paid is kept and shows here.</div>`; return; }
+  box.innerHTML = items.map(o=>{
+    const it=o.it, nm=(it.n||'').replace(/</g,'&lt;'), paid=amtPaid(it);
+    const tag = it.deleted
+      ? `<span class="ptag del">bill deleted · ${gbp(paid)} paid kept</span>`
+      : `<span class="ptag">fully paid · ${gbp(paid)}</span>`;
+    const log=(it.payments||[]).map((p,k)=>`<div class='pplogrow'><span>${gbp(Math.abs(+p.a||0))} on ${fmtD(p.d)}</span><button class='pprm' title='reverse this payment' onclick="removePayment('${o.type}',${o.i},${k})">↩ undo</button></div>`).join("");
+    const back = it.deleted
+      ? `<button class="bringback" onclick="restoreCard('${o.type}',${o.i})">↩ restore bill</button>`
+      : `<button class="bringback" onclick="unpay('${o.type}',${o.i})">↩ bring back</button>`;
+    return `<div class="paidrow"><div class="prtop"><div class="pleft"><span class="pname">${nm} <b>${gbp(Math.abs(+it.a||0))}</b>${it.inv?` · 📄 ${(''+it.inv).replace(/</g,'&lt;')}`:''}</span>${tag}</div>${back}</div>${log?`<div class="pplog">${log}</div>`:''}</div>`;
+  }).join("");
 }
 function markPaid(type,i){ if(S[type][i]){ S[type][i].paid=true; render(); } }
 function unpay(type,i){ if(S[type][i]){ delete S[type][i].paid; render(); } }
+function restoreCard(type,i){ const it=S[type][i]; if(!it) return; delete it.deleted; render(); }   // un-delete: bill returns to timeline, kept payments still counted
+// reverse a single logged payment from anywhere (editor OR paid list): money goes back onto owed + balance
+function removePayment(type,i,k){ const it=S[type] && S[type][i]; if(!it||!it.payments) return;
+  it.payments.splice(k,1);
+  if(!it.payments.length) delete it.payments;
+  if(it.paid && amtPaid(it) < Math.abs(+it.a||0)) delete it.paid;      // no longer fully covered
+  if(it.deleted && amtPaid(it) <= 0.005) S[type].splice(i,1);          // a deleted bill with every payment reversed = gone for good
+  render();
+}
 function togglePaid(){ const w=document.getElementById("paidWrap"), b=document.getElementById("paidBtn"); const show=w.style.display==="none"; w.style.display=show?"block":"none"; b.firstChild.textContent=(show?"▾ ":"▸ ")+"Paid bills ("; }
 function upd(type,i,k,val){ S[type][i][k]=(k==='a')?(+val||0):val; render(); }
-function delItem(type,i){ S[type].splice(i,1); render(); }
+function delItem(type,i){ const it=S[type][i]; if(it && amtPaid(it)>0.005) it.deleted=true; else S[type].splice(i,1); render(); }
 function addItem(type){ S[type].push({n:type==='out'?"New bill":"New receipt",a:0,d:""}); render(); }
 
 let edTarget=null;
@@ -613,16 +637,19 @@ function edPartPay(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.i
   const total=Math.abs(+it.a||0), pay=+document.getElementById("ed_paynow").value||0;
   if(pay<=0){ document.getElementById("ed_paynow").focus(); return; }
   if(!it.payments) it.payments=[];
-  it.payments.push({a:pay, d:new Date().toISOString().slice(0,10)});   // log amount + date
+  it.payments.push({a:pay, d:iso(new Date())});   // log amount + date (local date — no UTC/BST day-shift)
   const sum=it.payments.reduce((s,e)=>s+Math.abs(+e.a||0),0);
   if(sum>=total && it.repeat!=="monthly"){ it.paid=true; }   // one-off fully covered → mark paid (recurring stays)
   render(); openEditor(edTarget.type, edTarget.idx); }
-function edRemovePayment(k){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it||!it.payments) return;
-  it.payments.splice(k,1);                                    // put that payment back to owed + balance
-  if(!it.payments.length) delete it.payments;
-  if(it.paid && amtPaid(it) < Math.abs(+it.a||0)) delete it.paid;   // no longer fully covered
-  render(); openEditor(edTarget.type, edTarget.idx); }
-function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
+function edRemovePayment(k){ if(!edTarget) return; const t=edTarget.type, i=edTarget.idx; if(!S[t] || !S[t][i]) return;
+  removePayment(t,i,k);                                        // put that payment back to owed + balance
+  if(S[t] && S[t][i]) openEditor(t,i); else { document.getElementById("editor").style.display="none"; edTarget=null; } }
+function edDelete(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it) return;
+  if(confirm("Delete this card?")){
+    if(amtPaid(it)>0.005) it.deleted=true;                    // keep money already paid (moves to Paid bills), drop the unpaid remainder
+    else S[edTarget.type].splice(edTarget.idx,1);             // nothing paid → delete outright
+    document.getElementById("editor").style.display="none"; edTarget=null; render();
+  } }
 
 function applyTopBar(){
   S.opening=document.getElementById("opening").value; S.facility=document.getElementById("facility").value;
