@@ -139,6 +139,12 @@
   .paidbig{background:rgba(63,185,80,.2);color:var(--in)}
   .delbig{background:rgba(248,81,73,.15);color:var(--out)}
   .donebig{background:var(--accent);color:#0b0f14}
+  .partpay{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  .pp-status{font-size:12px;color:var(--dim);margin-bottom:8px} .pp-status b{color:var(--text)}
+  .pp-row{display:flex;gap:8px}
+  .pp-row input{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:15px}
+  .pp-row input:focus{outline:none;border-color:var(--accent)}
+  .ppbtn{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .edrep{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;color:var(--text);cursor:pointer}
   .edrep input{width:auto;accent-color:var(--accent);transform:scale(1.2)}
   .qarep{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer;white-space:nowrap}
@@ -166,6 +172,10 @@
       <label>Invoice no. <span class="hintlbl">(search this in Outlook)</span></label><input id="ed_inv" placeholder="e.g. INV-2231">
       <label>Comment <span class="hintlbl">(shows when you hover the card)</span></label><textarea id="ed_note" rows="3" placeholder="leave a note…"></textarea>
       <label class="edrep"><input type="checkbox" id="ed_repeat"> 🔁 Repeat monthly <span class="hintlbl">(same bill every month)</span></label>
+      <div class="partpay">
+        <div class="pp-status" id="ed_ppstatus"></div>
+        <div class="pp-row"><input id="ed_paynow" type="number" placeholder="pay part now £"><button type="button" class="ppbtn" onclick="edPartPay()">Record payment</button></div>
+      </div>
       <div class="modalactions">
         <button class="paidbig" id="ed_paidbtn" onclick="edPaidToggle()">✓ Mark paid</button>
         <button class="delbig" onclick="edDelete()">Delete</button>
@@ -258,7 +268,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v13";
+const APP_VERSION="v14";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -350,16 +360,20 @@ function monthlyDates(startISO){
   while(t.getTime()<=END.getTime()){ if(t.getTime()>=START.getTime()-WK) res.push(iso(t)); m++; t=new Date(y,m,day); }
   return res;
 }
+function amtPaid(x){ const t=Math.abs(+x.a||0); if(x.paid) return t; if(x.repeat==="monthly") return 0; return Math.min(Math.abs(+x.paidAmt||0),t); }
 function allEvents(){
   const ev=[];
   function pushItem(x,i,type){
     if(x.paid) return;
-    const amt=(type==="out"?-1:1)*Math.abs(+x.a||0);
+    const total=Math.abs(+x.a||0), sign=(type==="out"?-1:1);
     if(x.repeat==="monthly" && x.d){
-      monthlyDates(x.d).forEach(dd=>ev.push({n:x.n,a:amt,d:dd,t:type,idx:i,inv:x.inv,note:x.note,rep:true}));
-    } else {
-      ev.push({n:x.n,a:amt,d:x.d,t:type,idx:i,inv:x.inv,note:x.note});
+      monthlyDates(x.d).forEach(dd=>ev.push({n:x.n,a:sign*total,d:dd,t:type,idx:i,inv:x.inv,note:x.note,rep:true}));
+      return;
     }
+    const paidSoFar=Math.min(Math.abs(+x.paidAmt||0),total);
+    const remaining=total-paidSoFar;
+    if(remaining<=0.005) return;                          // fully covered by part-payments → off timeline
+    ev.push({n:x.n,a:sign*remaining,d:x.d,t:type,idx:i,inv:x.inv,note:x.note,part:paidSoFar,total:total});
   }
   S.out.forEach((x,i)=>pushItem(x,i,"out"));
   S.in.forEach((x,i)=>pushItem(x,i,"in"));
@@ -376,8 +390,8 @@ function render(){
 
   // paid items leave the timeline but the money has actually moved — adjust the starting balance
   let paidAdj=0;
-  S.out.forEach(x=>{ if(x.paid) paidAdj-=Math.abs(+x.a||0); });   // paid bill = money out
-  S.in.forEach(x=>{ if(x.paid) paidAdj+=Math.abs(+x.a||0); });    // received = money in
+  S.out.forEach(x=>{ paidAdj-=amtPaid(x); });   // money already gone out (fully paid + part-paid)
+  S.in.forEach(x=>{ paidAdj+=amtPaid(x); });    // money already received
   let bal=(+S.opening||0)+paidAdj; const fac=+S.facility||0;
   let firstBreach=null, low={b:Infinity,d:null};
   weeks.forEach(w=>{ const din=w.in.reduce((s,e)=>s+e.a,0); const dout=w.out.reduce((s,e)=>s+e.a,0);
@@ -421,7 +435,7 @@ function chip(e){
   const noDrag=e.gen||e.rep;
   const drag=noDrag? '' : `draggable="true" ondragstart="dragStart(event,'${e.t}',${e.idx})"`;
   const click=e.gen? '' : `onclick="openEditor('${e.t}',${e.idx})"`;
-  let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note); if(e.rep) tp.push("repeats monthly");
+  let tp=[]; if(e.inv) tp.push("Invoice: "+e.inv); if(e.note) tp.push(e.note); if(e.rep) tp.push("repeats monthly"); if(e.part>0) tp.push(gbp(e.part)+" part-paid · "+gbp(Math.abs(e.a))+" left of "+gbp(e.total));
   const tip=e.gen? 'auto — change at the top' : (tp.length?tp.join("  ·  "):"click to edit · drag to move");
   return `<span class="chip ${cls}${(e.gen||e.rep)?' gen':''}" title="${(tip||'').replace(/"/g,'&quot;')}" ${drag} ${click}>${e.note?'<span class="notedot"></span>':''}<span class="amt">${e.a<0?"−":"+"}${gbp(Math.abs(e.a))}</span><span class="nm">${e.n}</span></span>`;
 }
@@ -524,6 +538,9 @@ function openEditor(type,idx){
   document.getElementById("ed_note").value=it.note||"";
   document.getElementById("ed_repeat").checked = (it.repeat==="monthly");
   document.getElementById("ed_paidbtn").textContent = it.paid? "↩ Bring back" : "✓ Mark paid";
+  var _t=Math.abs(+it.a||0), _pd=Math.min(Math.abs(+it.paidAmt||0),_t), _ow=_t-_pd;
+  document.getElementById("ed_ppstatus").innerHTML = it.paid? "Fully paid." : (_pd>0? ("Part-paid <b>"+gbp(_pd)+"</b> · still owed <b>"+gbp(_ow)+"</b> of "+gbp(_t)) : ("Nothing part-paid yet · owed "+gbp(_t)));
+  document.getElementById("ed_paynow").value="";
   document.getElementById("editor").style.display="flex";
 }
 function edCommit(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it) return;
@@ -534,7 +551,13 @@ function edCommit(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.id
   it.note=document.getElementById("ed_note").value;
   if(document.getElementById("ed_repeat").checked) it.repeat="monthly"; else delete it.repeat; }
 function edClose(){ edCommit(); document.getElementById("editor").style.display="none"; edTarget=null; render(); }
-function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid) delete it.paid; else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
+function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid){ delete it.paid; delete it.paidAmt; } else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
+function edPartPay(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it) return; edCommit();
+  const total=Math.abs(+it.a||0), pay=+document.getElementById("ed_paynow").value||0;
+  if(pay<=0){ document.getElementById("ed_paynow").focus(); return; }
+  it.paidAmt=(+it.paidAmt||0)+pay;
+  if(it.paidAmt>=total){ it.paidAmt=total; it.paid=true; }   // fully covered → mark paid
+  render(); openEditor(edTarget.type, edTarget.idx); }
 function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
 
 ["opening","facility","payroll","payday"].forEach(k=>{
