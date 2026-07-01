@@ -71,6 +71,8 @@
   .wk.now{outline:2px solid var(--accent);outline-offset:-2px}
   .wk.now .wkhead{background:rgba(88,166,255,.18)}
   .wk.now .wkhead .mo{color:var(--accent);font-weight:700}
+  @keyframes chgflash{0%{box-shadow:0 0 0 2px var(--accent),0 0 12px var(--accent)}100%{box-shadow:none}}
+  .chip.flashchg{animation:chgflash 2.4s ease-out}
   .pos{color:var(--in)} .neg{color:var(--out)}
 
   .holdwrap{margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
@@ -300,7 +302,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v21";
+const APP_VERSION="v22";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -345,9 +347,14 @@ async function pollCloud(){
   fetch(dbUrl(),{cache:"no-store"}).then(r=>r.json()).then(data=>{
     if(!data || !Array.isArray(data.out)) return;
     const remote=JSON.stringify(data);
-    if(remote!==lastCloudJson){ S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); flashUpdated(); }
+    if(remote!==lastCloudJson){ const changed=diffNames(S,data); S=data; lastCloudJson=remote; localStorage.setItem("dgc_cf_v2",remote); render(); snapLabel(); flashUpdated(); highlightChanged(changed); }
   }).catch(()=>setCloudStatus("offline"));
 }
+function _sig(x){ return (x.a)+"|"+(x.d||"")+"|"+(x.paid?1:0)+"|"+((x.payments||[]).length)+"|"+(x.paidAmt||0); }
+function diffNames(oldS,nd){ const om={}; (oldS.out||[]).concat(oldS.in||[]).forEach(x=>{ om[x.n]=_sig(x); }); const ch=new Set();
+  (nd.out||[]).concat(nd.in||[]).forEach(x=>{ if(om[x.n]!==_sig(x)) ch.add(x.n); }); return ch; }
+function highlightChanged(names){ if(!names||!names.size) return;
+  setTimeout(()=>{ document.querySelectorAll(".wk .chip, #holding .chip").forEach(c=>{ const nm=c.querySelector(".nm"); if(nm && names.has(nm.textContent)){ c.classList.add("flashchg"); setTimeout(()=>c.classList.remove("flashchg"),2400); } }); },60); }
 function setCloudStatus(s){
   const el=document.getElementById("cloudStatus"); if(!el) return;
   if(s==="live"){ el.className="cloudbadge live"; el.textContent="☁︎ Live — shared with everyone"; }
