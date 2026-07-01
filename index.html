@@ -145,6 +145,8 @@
   .pp-row input{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:9px 11px;font-size:15px}
   .pp-row input:focus{outline:none;border-color:var(--accent)}
   .ppbtn{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+  .pplog{margin-top:8px;font-size:12px;color:var(--dim);line-height:1.6}
+  .payrow td{font-size:11px;color:var(--warn);background:rgba(210,153,34,.06);padding:5px 10px} .payrow b{color:var(--text)}
   .edrep{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;color:var(--text);cursor:pointer}
   .edrep input{width:auto;accent-color:var(--accent);transform:scale(1.2)}
   .qarep{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer;white-space:nowrap}
@@ -268,7 +270,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v14";
+const APP_VERSION="v15";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -360,7 +362,7 @@ function monthlyDates(startISO){
   while(t.getTime()<=END.getTime()){ if(t.getTime()>=START.getTime()-WK) res.push(iso(t)); m++; t=new Date(y,m,day); }
   return res;
 }
-function amtPaid(x){ const t=Math.abs(+x.a||0); if(x.paid) return t; if(x.repeat==="monthly") return 0; return Math.min(Math.abs(+x.paidAmt||0),t); }
+function amtPaid(x){ const t=Math.abs(+x.a||0); if(x.paid) return t; if(x.repeat==="monthly") return 0; let p=(x.payments||[]).reduce((s,e)=>s+Math.abs(+e.a||0),0); if(!p && x.paidAmt) p=Math.abs(+x.paidAmt||0); return Math.min(p,t); }
 function allEvents(){
   const ev=[];
   function pushItem(x,i,type){
@@ -496,9 +498,17 @@ function drawTrend(weeks,fac){
 }
 
 function buildTables(){
-  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>{ if(!it.paid) ob.appendChild(rowEl(it,i,"out")); });
-  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>{ if(!it.paid) ib.appendChild(rowEl(it,i,"in")); });
+  const ob=document.getElementById("outBody"); ob.innerHTML=""; S.out.forEach((it,i)=>{ if(!it.paid){ ob.appendChild(rowEl(it,i,"out")); const pr=payRow(it); if(pr) ob.appendChild(pr); } });
+  const ib=document.getElementById("inBody"); ib.innerHTML=""; S.in.forEach((it,i)=>{ if(!it.paid){ ib.appendChild(rowEl(it,i,"in")); const pr=payRow(it); if(pr) ib.appendChild(pr); } });
   renderPaid();
+}
+function payRow(it){
+  if(!it.payments||!it.payments.length) return null;
+  const total=Math.abs(+it.a||0), pd=amtPaid(it), ow=total-pd;
+  const log=it.payments.map(p=>gbp(Math.abs(+p.a||0))+" on "+fmtD(p.d)).join(" · ");
+  const tr=document.createElement("tr"); tr.className="payrow";
+  tr.innerHTML='<td colspan="7">Part-payments: '+log+' &nbsp;—&nbsp; <b>'+gbp(ow)+'</b> left of '+gbp(total)+'</td>';
+  return tr;
 }
 function rowEl(it,i,type){
   const tr=document.createElement("tr");
@@ -538,8 +548,9 @@ function openEditor(type,idx){
   document.getElementById("ed_note").value=it.note||"";
   document.getElementById("ed_repeat").checked = (it.repeat==="monthly");
   document.getElementById("ed_paidbtn").textContent = it.paid? "↩ Bring back" : "✓ Mark paid";
-  var _t=Math.abs(+it.a||0), _pd=Math.min(Math.abs(+it.paidAmt||0),_t), _ow=_t-_pd;
-  document.getElementById("ed_ppstatus").innerHTML = it.paid? "Fully paid." : (_pd>0? ("Part-paid <b>"+gbp(_pd)+"</b> · still owed <b>"+gbp(_ow)+"</b> of "+gbp(_t)) : ("Nothing part-paid yet · owed "+gbp(_t)));
+  var _t=Math.abs(+it.a||0), _pd=amtPaid(it), _ow=_t-_pd;
+  var _log=(it.payments||[]).map(function(p){return "• "+gbp(Math.abs(+p.a||0))+" on "+fmtD(p.d);}).join("<br>");
+  document.getElementById("ed_ppstatus").innerHTML = "Original bill <b>"+gbp(_t)+"</b>"+(it.paid?" · fully paid":(_pd>0?(" · paid <b>"+gbp(_pd)+"</b> · still owed <b>"+gbp(_ow)+"</b>"):" · nothing part-paid yet"))+(_log?("<div class='pplog'>"+_log+"</div>"):"");
   document.getElementById("ed_paynow").value="";
   document.getElementById("editor").style.display="flex";
 }
@@ -551,12 +562,14 @@ function edCommit(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.id
   it.note=document.getElementById("ed_note").value;
   if(document.getElementById("ed_repeat").checked) it.repeat="monthly"; else delete it.repeat; }
 function edClose(){ edCommit(); document.getElementById("editor").style.display="none"; edTarget=null; render(); }
-function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid){ delete it.paid; delete it.paidAmt; } else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
+function edPaidToggle(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; edCommit(); if(it.paid){ delete it.paid; delete it.paidAmt; delete it.payments; } else it.paid=true; document.getElementById("editor").style.display="none"; edTarget=null; render(); }
 function edPartPay(){ if(!edTarget) return; const it=S[edTarget.type][edTarget.idx]; if(!it) return; edCommit();
   const total=Math.abs(+it.a||0), pay=+document.getElementById("ed_paynow").value||0;
   if(pay<=0){ document.getElementById("ed_paynow").focus(); return; }
-  it.paidAmt=(+it.paidAmt||0)+pay;
-  if(it.paidAmt>=total){ it.paidAmt=total; it.paid=true; }   // fully covered → mark paid
+  if(!it.payments) it.payments=[];
+  it.payments.push({a:pay, d:new Date().toISOString().slice(0,10)});   // log amount + date
+  const sum=it.payments.reduce((s,e)=>s+Math.abs(+e.a||0),0);
+  if(sum>=total){ it.paid=true; }   // fully covered → mark paid
   render(); openEditor(edTarget.type, edTarget.idx); }
 function edDelete(){ if(!edTarget) return; if(confirm("Delete this card?")){ S[edTarget.type].splice(edTarget.idx,1); document.getElementById("editor").style.display="none"; edTarget=null; render(); } }
 
