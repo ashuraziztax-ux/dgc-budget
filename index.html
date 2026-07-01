@@ -147,6 +147,12 @@
   .ppbtn{background:rgba(88,166,255,.15);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:9px 12px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .pplog{margin-top:8px;font-size:12px;color:var(--dim);line-height:1.6}
   .payrow td{font-size:11px;color:var(--warn);background:rgba(210,153,34,.06);padding:5px 10px} .payrow b{color:var(--text)}
+  .revbtn{background:rgba(88,166,255,.12)!important;color:var(--accent)!important;border-color:var(--accent)!important}
+  .rec-intro{font-size:13px;color:var(--dim);margin-bottom:12px;line-height:1.45} .rec-intro b{color:var(--text)}
+  #rec-list{max-height:52vh;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+  .rec-row{display:flex;flex-direction:column;gap:6px;background:var(--card2);border:1px solid var(--line);border-radius:8px;padding:10px}
+  .rec-info{font-size:14px} .rec-desc{color:var(--dim);font-size:12px}
+  .rec-sel{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:8px 9px;font-size:13px;width:100%}
   .edrep{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:14px;color:var(--text);cursor:pointer}
   .edrep input{width:auto;accent-color:var(--accent);transform:scale(1.2)}
   .qarep{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--dim);cursor:pointer;white-space:nowrap}
@@ -183,6 +189,15 @@
         <button class="delbig" onclick="edDelete()">Delete</button>
         <button class="donebig" onclick="edClose()">Done</button>
       </div>
+    </div>
+  </div>
+
+  <div id="reconcile" class="modal" onclick="if(event.target===this)closeReconcile()">
+    <div class="modalbox" style="width:560px;max-width:100%">
+      <div class="modaltop"><span>💳 Import from Revolut</span><button class="xbtn" onclick="closeReconcile()">✕</button></div>
+      <div class="rec-intro" id="rec-intro"></div>
+      <div id="rec-list"></div>
+      <div class="modalactions"><button class="donebig" onclick="applyReconcile()">Apply matched payments</button><button onclick="closeReconcile()">Cancel</button></div>
     </div>
   </div>
 
@@ -248,6 +263,8 @@
     <button onclick="exportData()">⬇ Backup to file</button>
     <button onclick="document.getElementById('importFile').click()">⬆ Restore from file</button>
     <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importData(event)">
+    <button class="revbtn" onclick="document.getElementById('revFile').click()">💳 Import from Revolut (CSV)</button>
+    <input type="file" id="revFile" accept=".csv,text/csv" style="display:none" onchange="importRevolut(event)">
     <button class="danger" onclick="resetAll()">↺ Start over (original figures)</button>
   </div>
   <div class="savenote" id="saveNote"></div>
@@ -270,7 +287,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v18";
+const APP_VERSION="v19";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
@@ -607,6 +624,58 @@ function tryAutoLogin(){
 
 document.addEventListener("dragend",()=>{ dragging=false; });
 window.addEventListener("beforeunload",()=>{ if(cloudReady){ try{ fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); }catch(e){} } });
+// ---- Revolut CSV import ----
+function splitCSVLine(line){ const out=[]; let cur="",q=false; for(let i=0;i<line.length;i++){ const ch=line[i]; if(q){ if(ch=='"'){ if(line[i+1]=='"'){cur+='"';i++;} else q=false; } else cur+=ch; } else { if(ch=='"') q=true; else if(ch==','){ out.push(cur); cur=""; } else cur+=ch; } } out.push(cur); return out; }
+function findCol(headers, keys){ for(let k=0;k<keys.length;k++){ const idx=headers.findIndex(h=>h.indexOf(keys[k])>=0); if(idx>=0) return idx; } return -1; }
+function parseRevolutCSV(text){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim().length);
+  if(lines.length<2) return {error:"the file looks empty."};
+  const headers=splitCSVLine(lines[0]).map(h=>h.trim().toLowerCase());
+  const amtIdx=findCol(headers,["amount","paid out","money out","debit"]);
+  const dateIdx=findCol(headers,["date completed","completed date","date started","date"]);
+  const descIdx=findCol(headers,["description","reference","beneficiary","payee","counterparty","merchant","name"]);
+  if(amtIdx<0) return {error:"couldn't find an 'Amount' column. Your headers are: "+headers.join(", ")};
+  const rows=[];
+  for(let i=1;i<lines.length;i++){ const c=splitCSVLine(lines[i]); if(c.length<=amtIdx) continue;
+    const amt=parseFloat((c[amtIdx]||"").replace(/[^0-9.\-]/g,"")); if(isNaN(amt)||amt>=0) continue;   // ignore incoming (top-ups)
+    rows.push({amount:Math.abs(amt), date:(dateIdx>=0?(c[dateIdx]||""):"").slice(0,10), desc:(descIdx>=0?(c[descIdx]||""):"").trim()}); }
+  return {rows:rows};
+}
+let recRows=[];
+function importRevolut(ev){ const f=ev.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=function(){ const res=parseRevolutCSV(r.result); if(res.error){ alert("Couldn't read that CSV — "+res.error); return; } recRows=res.rows; openReconcile(); };
+  r.readAsText(f); ev.target.value=""; }
+function suggestBill(pay){ let best=-1,bestScore=0;
+  S.out.forEach((b,idx)=>{ if(b.paid) return; const total=Math.abs(+b.a||0), owed=total-amtPaid(b); if(owed<=0.005) return;
+    let score=0;
+    if(Math.abs(pay.amount-owed)<1) score+=5; else if(Math.abs(pay.amount-total)<1) score+=4; else if(pay.amount<=owed+1) score+=1;
+    const bn=(b.n||"").toLowerCase(), inv=(""+(b.inv||"")).toLowerCase(), d=(pay.desc||"").toLowerCase();
+    if(d&&bn&&(d.indexOf(bn)>=0||bn.indexOf(d)>=0)) score+=3;
+    if(inv&&d&&d.indexOf(inv)>=0) score+=4;
+    bn.split(/[^a-z0-9]+/).forEach(w=>{ if(w.length>3&&d.indexOf(w)>=0) score+=2; });
+    if(score>bestScore){ bestScore=score; best=idx; } });
+  return bestScore>=3?best:-1; }
+function openReconcile(){
+  document.getElementById("rec-intro").innerHTML = recRows.length? ("Found <b>"+recRows.length+"</b> payment"+(recRows.length==1?"":"s")+" going OUT of Revolut (incoming ignored). Match each to a bill, then Apply. Leave as Ignore to skip.") : "No outgoing payments found (incoming is ignored). Check the file, or paste me your CSV header row.";
+  document.getElementById("rec-list").innerHTML = recRows.map((p,k)=>{
+    const sug=suggestBill(p);
+    let opts='<option value="ignore">— Ignore —</option>';
+    S.out.forEach((b,idx)=>{ if(b.paid) return; opts+='<option value="'+idx+'"'+(idx===sug?' selected':'')+'>'+(b.n||"").replace(/</g,"&lt;")+' ('+gbp(Math.abs(+b.a||0)-amtPaid(b))+' left)</option>'; });
+    return '<div class="rec-row"><div class="rec-info"><b>'+gbp(p.amount)+'</b> <span class="rec-desc">'+((p.desc||"(no description)").replace(/</g,"&lt;"))+(p.date?" · "+p.date:"")+'</span></div><select class="rec-sel" data-k="'+k+'">'+opts+'</select></div>';
+  }).join("");
+  document.getElementById("reconcile").style.display="flex";
+}
+function closeReconcile(){ document.getElementById("reconcile").style.display="none"; recRows=[]; }
+function applyReconcile(){
+  let applied=0;
+  document.querySelectorAll("#rec-list .rec-sel").forEach(sel=>{ const v=sel.value; if(v==="ignore") return; const it=S.out[+v], pay=recRows[+sel.getAttribute("data-k")]; if(!it||!pay) return;
+    if(!it.payments) it.payments=[]; it.payments.push({a:pay.amount, d:(pay.date||new Date().toISOString().slice(0,10))});
+    const total=Math.abs(+it.a||0), sum=it.payments.reduce((s,e)=>s+Math.abs(+e.a||0),0); if(sum>=total && it.repeat!=="monthly") it.paid=true; applied++; });
+  closeReconcile(); render();
+  setCloudStatus("live");
+  alert(applied+" payment"+(applied==1?"":"s")+" applied to the sheet.");
+}
+
 load(); render(); snapLabel(); tryAutoLogin();
 checkForUpdate(); setInterval(checkForUpdate,30000);
 </script>
