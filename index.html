@@ -36,7 +36,7 @@
   .tlwrap{min-width:max-content}
   .monthband{display:flex;border-bottom:1px solid var(--line)}
   .mb{border-right:1px solid var(--line);padding:7px 10px;font-size:13px;font-weight:700;color:var(--accent);
-    text-transform:uppercase;letter-spacing:.04em;position:sticky;left:0}
+    text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;overflow:hidden}
   .mb:last-child{border-right:none}
   .timeline{display:flex}
   .wk{flex:0 0 132px;width:132px;border-right:1px solid var(--line)}
@@ -303,7 +303,7 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v24";
+const APP_VERSION="v25";
 let remoteVersion=null, updateShown=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
