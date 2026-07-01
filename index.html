@@ -270,15 +270,28 @@ const DEFAULTS = {
 let S;
 const DB="https://dgc-login-default-rtdb.europe-west1.firebasedatabase.app";
 let lastCloudJson=null, putTimer=null, cloudReady=false, dragging=false;
-const APP_VERSION="v16";
-let remoteVersion=null, updateShown=false;
+const APP_VERSION="v17";
+let remoteVersion=null, updateShown=false, pendingUpdate=false;
 function checkForUpdate(){
   fetch("version.txt?t="+new Date().getTime(),{cache:"no-store"}).then(r=>r.ok?r.text():null).then(v=>{
-    if(v){ v=v.trim(); if(v && v!==APP_VERSION && !updateShown){ updateShown=true; remoteVersion=v; showUpdateBar(); } }
+    if(v){ v=v.trim(); if(v && v!==APP_VERSION){ remoteVersion=v; pendingUpdate=true; maybeAutoUpdate(); } }
   }).catch(()=>{});
 }
-function showUpdateBar(){ if(document.getElementById("updbar"))return; const b=document.createElement("div"); b.id="updbar"; b.className="updbar"; b.innerHTML='🔄 A new version of the budget is ready. <button id="updbtn">Update now</button>'; document.body.appendChild(b); document.getElementById("updbtn").onclick=applyUpdate; }
-async function applyUpdate(){ await flushNow(); location.replace(location.pathname+"?v="+encodeURIComponent((remoteVersion||"")+"-"+new Date().getTime())); }
+function editingNow(){                      // don't yank the page while they're mid-entry
+  const ae=document.activeElement;
+  if(ae && /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName)) return true;
+  if(dragging) return true;
+  const ed=document.getElementById("editor"); if(ed && ed.style.display==="flex") return true;   // card editor open
+  return false;
+}
+async function maybeAutoUpdate(){
+  if(!pendingUpdate || updateShown) return;
+  if(editingNow()){ setTimeout(maybeAutoUpdate,3000); return; }   // wait until they've finished, then auto-update
+  updateShown=true;
+  const b=document.createElement("div"); b.id="updbar"; b.className="updbar"; b.textContent="🔄 Updating to the latest version…"; document.body.appendChild(b);
+  await flushNow();
+  setTimeout(()=>location.replace(location.pathname+"?v="+encodeURIComponent((remoteVersion||"")+"-"+new Date().getTime())),700);
+}
 async function flushNow(){ clearTimeout(putTimer); if(cloudReady){ await ensureToken(); try{ await fetch(dbUrl(),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(S),keepalive:true}); lastCloudJson=JSON.stringify(S);}catch(e){} } }
 function flashUpdated(){ const el=document.getElementById("cloudStatus"); if(!el)return; el.className="cloudbadge live"; el.textContent="↻ Updated just now"; setTimeout(()=>setCloudStatus("live"),2500); }
 
